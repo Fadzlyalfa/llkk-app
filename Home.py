@@ -1,21 +1,24 @@
 import streamlit as st
 from PIL import Image
 
-# Display header
+# --- PAGE SETUP ---
 st.set_page_config(page_title="LLKK - Lab Legend Kingdom Kvalis", layout="wide")
 
-# Sidebar navigation
+# --- SIDEBAR MENU ---
 menu = st.sidebar.selectbox(
     "🔍 Navigate LLKK Features",
     ["Home", "Battle Log", "Champion", "Download", "About", "Help"]
 )
 
-# --- ROUTING LOGIC ---
+# --- ROUTING ---
 if menu == "Home":
     def run():
         st.success("Use the navigation sidebar to explore LLKK features")
-        img = Image.open("Header.png")
-        st.image(img, use_column_width=True)
+        try:
+            img = Image.open("Header.png")
+            st.image(img, use_container_width=True)  # use_container_width is the current valid argument
+        except FileNotFoundError:
+            st.error("⚠️ Header image not found. Please ensure 'Header.png' is in the app directory.")
     run()
 
 elif menu == "Battle Log":
