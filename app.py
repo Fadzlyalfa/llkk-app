@@ -5,9 +5,9 @@ import os
 import base64
 from io import BytesIO
 
-# ──────────────────────────────────────────────
-# 🛠 Utility Functions
-# ──────────────────────────────────────────────
+# ──────────────────────────────
+# Utility Functions
+# ──────────────────────────────
 
 def encode_image(path):
     with open(path, "rb") as f:
@@ -41,37 +41,34 @@ def get_test_icon(parameter):
         return "🧱 ALP"
     return parameter
 
-# ──────────────────────────────────────────────
-# ⚙️ App Config
-# ──────────────────────────────────────────────
+# ──────────────────────────────
+# App Config
+# ──────────────────────────────
 st.set_page_config(layout="wide")
 st.title("🧝 LLKK - Lab Legend Kingdom Kvalis")
 
-# Avatars
 lab_avatars = {
     "Lab_A": os.path.join("lab_a.png"),
     "Lab_B": os.path.join("lab_b.png"),
     "Lab_C": os.path.join("lab_c.png")
 }
 
-# ──────────────────────────────────────────────
-# 📥 Upload Excel File
-# ──────────────────────────────────────────────
-uploaded_file = st.file_uploader("📂 Upload your LLKK Excel file", type=["xlsx"])
+# ──────────────────────────────
+# Upload File
+# ──────────────────────────────
+uploaded_file = st.file_uploader("📂 Upload LLKK Excel file", type=["xlsx"])
 
 if uploaded_file:
     df_raw = pd.read_excel(uploaded_file)
     st.subheader("📄 Raw Uploaded Data")
     st.dataframe(df_raw)
 
-    # ──────────────────────────────────────────
-    # 🔁 Transform Client Input to Internal Format
-    # ──────────────────────────────────────────
+    # Map parameters
     param_map = {
         "Glucose": "Glu",
         "Creatinine": "Cre",
         "Cholesterol": "Chol",
-        "Cholestetol": "Chol",  # autocorrect
+        "Cholestetol": "Chol",  # typo fix
     }
 
     df = df_raw.copy()
@@ -82,12 +79,16 @@ if uploaded_file:
     df['Ratio_Mar'] = df['CV']
     df['Rank_Feb'] = 1500
 
-    df = df.rename(columns={"Lab": "Lab", "Parameter_ID": "Parameter"})
-    df = df[['Lab', 'Parameter', 'CV_Mar', 'Ratio_Mar', 'Rank_Feb']]
+    # Prepare processed dataframe
+    df_processed = df[['Lab', 'Parameter_ID', 'CV_Mar', 'Ratio_Mar', 'Rank_Feb']].rename(
+        columns={'Parameter_ID': 'Parameter'}
+    )
 
-    # ──────────────────────────────────────────
-    # 🧮 Bonus and Penalty
-    # ──────────────────────────────────────────
+    df = df_processed.copy()
+
+    # ──────────────────────────────
+    # Bonus & Penalty
+    # ──────────────────────────────
     def calculate_bonus_penalty(row):
         if pd.isna(row['CV_Mar']) or pd.isna(row['Ratio_Mar']):
             return 0, 10
@@ -104,13 +105,14 @@ if uploaded_file:
     df['Parameter_Icon'] = df['Parameter'].apply(get_test_icon)
     df['Lab_Display'] = df['Lab'].apply(get_lab_avatar_markdown)
 
-    # 🎯 Bonus and Penalty Table
+    # ──────────────────────────────
+    # Display Tables
+    # ──────────────────────────────
     st.markdown("### 🎯 Bonus and Penalty Applied", unsafe_allow_html=True)
     st.write(df[['Lab_Display', 'Parameter_Icon', 'Bonus', 'Penalty', 'Final_Elo']]
              .rename(columns={'Lab_Display': 'Lab', 'Parameter_Icon': 'Test'})
              .to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # ⚔️ Elo Summary
     final_elos = df.groupby('Lab')['Final_Elo'].mean().reset_index()
     final_elos['Lab_Display'] = final_elos['Lab'].apply(get_lab_avatar_markdown)
 
@@ -119,9 +121,10 @@ if uploaded_file:
              .rename(columns={'Lab_Display': 'Lab'})
              .to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # 🧝 Avatar Cards with Ranks & Medals
+    # ──────────────────────────────
+    # Avatar Cards with Medals
+    # ──────────────────────────────
     st.subheader("🏆 Legend Ranking View")
-
     ranked_labs = final_elos.sort_values(by='Final_Elo', ascending=False).reset_index(drop=True)
     medals = ["🥇", "🥈", "🥉"]
 
@@ -129,7 +132,6 @@ if uploaded_file:
         lab = row['Lab']
         elo = row['Final_Elo']
         medal = medals[idx] if idx < len(medals) else "🏅"
-        
         st.markdown(f"""
             <div style='border: 2px solid #ccc; border-radius: 12px; padding: 10px 16px; margin: 10px 0; display: flex; align-items: center; background-color: #f9f9f9;'>
                 <img src='data:image/png;base64,{encode_image(lab_avatars[lab])}' width='60' style='margin-right: 16px; border-radius: 8px;'/>
@@ -140,7 +142,9 @@ if uploaded_file:
             </div>
         """, unsafe_allow_html=True)
 
-    # 👑 Champion Logic
+    # ──────────────────────────────
+    # Champion Display
+    # ──────────────────────────────
     st.markdown("## 👑 Champion of the Month")
     max_elo = final_elos['Final_Elo'].max()
     top_labs = final_elos[final_elos['Final_Elo'] == max_elo]
@@ -149,7 +153,9 @@ if uploaded_file:
         st.markdown(f"### 🏆 {row['Lab']} — Final Elo: **{row['Final_Elo']:.2f}**")
         st.success(f"🎉 Congratulations {row['Lab']}! You are crowned this month’s Champion in Kingdom Kvalis.")
 
-    # 📥 Download Button
+    # ──────────────────────────────
+    # Download
+    # ──────────────────────────────
     st.subheader("📁 Download Final Elo Table")
     def to_excel(dataframe):
         output = BytesIO()
