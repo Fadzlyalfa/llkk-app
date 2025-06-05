@@ -43,22 +43,33 @@ if uploaded_file:
     df['Final_Elo'] = df['Base_Elo'] + df['Bonus'] - df['Penalty']
 
     # ───────────────────────────────────────────────────
-    # 🧪 Replace Test Name with Icon
+    # 🧪 Replace Test Name with Icon using Prefix
     # ───────────────────────────────────────────────────
-    test_icon_map = {
-        'Glucose': '🩸',
-        'Creatinine': '💧',
-        'Cholesterol': '🥚',
-        'HbA1c': '🧪',
-        'ALT': '🍷',
-        'AST': '🔥',
-        'Urea': '🚽',
-        'Albumin': '🎵',
-        'Total_Protein': '📊',
-        'ALP': '🧱'
-    }
+    def get_test_icon(parameter):
+        if parameter.startswith("Glu"):
+            return "🩸 Glucose"
+        elif parameter.startswith("Cre"):
+            return "💧 Creatinine"
+        elif parameter.startswith("Chol"):
+            return "🥚 Cholesterol"
+        elif parameter.startswith("HbA1c"):
+            return "🧪 HbA1c"
+        elif parameter.startswith("ALT"):
+            return "🍷 ALT"
+        elif parameter.startswith("AST"):
+            return "🔥 AST"
+        elif parameter.startswith("Urea"):
+            return "🚽 Urea"
+        elif parameter.startswith("Alb"):
+            return "🎵 Albumin"
+        elif parameter.startswith("TP"):
+            return "📊 Total Protein"
+        elif parameter.startswith("ALP"):
+            return "🧱 ALP"
+        else:
+            return parameter
 
-    df['Parameter_Icon'] = df['Parameter'].apply(lambda p: test_icon_map.get(p, p))
+    df['Parameter_Icon'] = df['Parameter'].apply(get_test_icon)
 
     st.subheader("🎯 Bonus and Penalty Applied")
     st.dataframe(df[['Lab', 'Parameter_Icon', 'Bonus', 'Penalty', 'Final_Elo']].rename(columns={'Parameter_Icon': 'Test'}))
