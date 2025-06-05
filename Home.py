@@ -1,24 +1,42 @@
 import streamlit as st
 from PIL import Image
+import pandas as pd
 
-# --- PAGE SETUP ---
+# Configure page
 st.set_page_config(page_title="LLKK - Lab Legend Kingdom Kvalis", layout="wide")
 
-# --- SIDEBAR MENU ---
+# Sidebar navigation
 menu = st.sidebar.selectbox(
     "🔍 Navigate LLKK Features",
     ["Home", "Battle Log", "Champion", "Download", "About", "Help"]
 )
 
-# --- ROUTING ---
+# --- ROUTING LOGIC ---
 if menu == "Home":
     def run():
         st.success("Use the navigation sidebar to explore LLKK features")
-        try:
-            img = Image.open("Header.png")
-            st.image(img, use_container_width=True)  # use_container_width is the current valid argument
-        except FileNotFoundError:
-            st.error("⚠️ Header image not found. Please ensure 'Header.png' is in the app directory.")
+
+        # Header Image
+        img = Image.open("Header.png")
+        st.image(img, use_container_width=True)
+
+        # File uploader
+        st.markdown("### 📤 Upload Your LLKK Excel Data")
+        uploaded_file = st.file_uploader("Upload .xlsx file", type=["xlsx"])
+        
+        if uploaded_file is not None:
+            try:
+                df = pd.read_excel(uploaded_file)
+                st.session_state["llkk_data"] = df  # Save to session state
+                st.success("✅ File uploaded successfully!")
+
+                # Preview
+                st.markdown("### 👁️ Uploaded Preview")
+                st.dataframe(df, use_container_width=True)
+
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
+
     run()
 
 elif menu == "Battle Log":
