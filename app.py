@@ -101,17 +101,26 @@ if uploaded_file:
              .rename(columns={'Lab_Display': 'Lab'})
              .to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # 📊 Elo Chart
-    st.subheader("📊 Elo Score by Lab")
-    fig = px.bar(final_elos, x='Lab', y='Final_Elo', color='Lab', title='Final Elo Scores by Lab')
-    st.plotly_chart(fig)
+    # 🧝 Avatar Cards with Ranks & Medals
+    st.subheader("🏆 Legend Ranking View")
 
-    # 🏰 Fantasy Leaderboard
-    st.subheader("🏰 LLKK Fantasy Leaderboard")
-    for lab in final_elos['Lab'].unique():
-        st.image(lab_avatars.get(lab, ""), width=150)
-        score = final_elos[final_elos['Lab'] == lab]['Final_Elo'].values[0]
-        st.markdown(f"### 🏅 {lab} — Final Elo: **{score:.2f}**")
+    ranked_labs = final_elos.sort_values(by='Final_Elo', ascending=False).reset_index(drop=True)
+    medals = ["🥇", "🥈", "🥉"]
+
+    for idx, row in ranked_labs.iterrows():
+        lab = row['Lab']
+        elo = row['Final_Elo']
+        medal = medals[idx] if idx < len(medals) else "🏅"
+        
+        st.markdown(f"""
+            <div style='border: 2px solid #ccc; border-radius: 12px; padding: 10px 16px; margin: 10px 0; display: flex; align-items: center; background-color: #f9f9f9;'>
+                <img src='data:image/png;base64,{encode_image(lab_avatars[lab])}' width='60' style='margin-right: 16px; border-radius: 8px;'/>
+                <div>
+                    <div style='font-size: 20px; font-weight: bold;'>{medal} {lab}</div>
+                    <div style='font-size: 16px;'>Final Elo: <b>{elo:.2f}</b></div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
 
     # 👑 Champion Logic
     st.markdown("## 👑 Champion of the Month")
