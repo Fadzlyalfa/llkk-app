@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
 import os
 import base64
 from io import BytesIO
@@ -58,17 +57,37 @@ lab_avatars = {
 # ──────────────────────────────────────────────
 # 📥 Upload Excel File
 # ──────────────────────────────────────────────
-uploaded_file = st.file_uploader("📂 Upload your LLKK Excel file (e.g. March 2025)", type=["xlsx"])
+uploaded_file = st.file_uploader("📂 Upload your LLKK Excel file", type=["xlsx"])
 
 if uploaded_file:
-    df = pd.read_excel(uploaded_file)
+    df_raw = pd.read_excel(uploaded_file)
     st.subheader("📄 Raw Uploaded Data")
-    st.dataframe(df)
+    st.dataframe(df_raw)
 
-    # Base Elo
-    df['Base_Elo'] = df['Rank_Feb']
+    # ──────────────────────────────────────────
+    # 🔁 Transform Client Input to Internal Format
+    # ──────────────────────────────────────────
+    param_map = {
+        "Glucose": "Glu",
+        "Creatinine": "Cre",
+        "Cholesterol": "Chol",
+        "Cholestetol": "Chol",  # autocorrect
+    }
 
-    # Bonus & Penalty
+    df = df_raw.copy()
+    df['Parameter_Code'] = df['Parameter'].map(param_map)
+    df['Level_Num'] = df['Level'].str.extract(r'(\d)').fillna("1")
+    df['Parameter_ID'] = df['Parameter_Code'] + "_L" + df['Level_Num']
+    df['CV_Mar'] = df['CV']
+    df['Ratio_Mar'] = df['CV']
+    df['Rank_Feb'] = 1500
+
+    df = df.rename(columns={"Lab": "Lab", "Parameter_ID": "Parameter"})
+    df = df[['Lab', 'Parameter', 'CV_Mar', 'Ratio_Mar', 'Rank_Feb']]
+
+    # ──────────────────────────────────────────
+    # 🧮 Bonus and Penalty
+    # ──────────────────────────────────────────
     def calculate_bonus_penalty(row):
         if pd.isna(row['CV_Mar']) or pd.isna(row['Ratio_Mar']):
             return 0, 10
@@ -80,9 +99,8 @@ if uploaded_file:
         return bonus, 0
 
     df[['Bonus', 'Penalty']] = df.apply(lambda row: pd.Series(calculate_bonus_penalty(row)), axis=1)
-    df['Final_Elo'] = df['Base_Elo'] + df['Bonus'] - df['Penalty']
+    df['Final_Elo'] = df['Rank_Feb'] + df['Bonus'] - df['Penalty']
 
-    # Map icons
     df['Parameter_Icon'] = df['Parameter'].apply(get_test_icon)
     df['Lab_Display'] = df['Lab'].apply(get_lab_avatar_markdown)
 
@@ -92,7 +110,7 @@ if uploaded_file:
              .rename(columns={'Lab_Display': 'Lab', 'Parameter_Icon': 'Test'})
              .to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # ⚔️ Elo Battle Summary
+    # ⚔️ Elo Summary
     final_elos = df.groupby('Lab')['Final_Elo'].mean().reset_index()
     final_elos['Lab_Display'] = final_elos['Lab'].apply(get_lab_avatar_markdown)
 
