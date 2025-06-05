@@ -9,6 +9,7 @@ from itertools import combinations
 # ──────────────────────────────
 # Utility Functions
 # ──────────────────────────────
+
 def encode_image(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
@@ -60,7 +61,7 @@ uploaded_file = st.file_uploader("📂 Upload LLKK Excel file", type=["xlsx"])
 
 if uploaded_file:
     df_raw = pd.read_excel(uploaded_file)
-    df_raw.columns = df_raw.columns.str.strip()  # clean column names
+    df_raw.columns = df_raw.columns.str.strip()
 
     st.subheader("📄 Raw Uploaded Data")
     st.dataframe(df_raw)
@@ -130,8 +131,6 @@ if uploaded_file:
             R1 = 10 ** (lab_elos[lab1] / 400)
             R2 = 10 ** (lab_elos[lab2] / 400)
             E1 = R1 / (R1 + R2)
-            E2 = R2 / (R1 + R2)
-
             delta1 = k_factor * (outcome - E1)
             delta2 = -delta1
             lab_elos[lab1] += delta1
@@ -159,6 +158,26 @@ if uploaded_file:
     st.write(final_table[['Lab_Display', 'Final_Elo']]
              .rename(columns={'Lab_Display': 'Lab'})
              .to_html(escape=False, index=False), unsafe_allow_html=True)
+
+    # ──────────── Champion of the Month ─────────────
+    st.markdown("## 👑 Champion of the Month")
+    max_elo = final_table['Final_Elo'].max()
+    top_labs = final_table[final_table['Final_Elo'] == max_elo]
+    for _, row in top_labs.iterrows():
+        st.image(lab_avatars.get(row['Lab'], ""), width=150)
+        st.markdown(f"### 🏆 {row['Lab']} — Final Elo: **{row['Final_Elo']:.2f}**")
+        st.success(f"🎉 Congratulations {row['Lab']}! You are crowned this month’s Champion in Kingdom Kvalis.")
+
+    # ──────────── Download Button ─────────────
+    st.subheader("📁 Download Final Elo Table")
+    def to_excel(dataframe):
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            dataframe.to_excel(writer, index=False, sheet_name='Final_Elo')
+        return output.getvalue()
+
+    excel_data = to_excel(final_table)
+    st.download_button("Download Elo Results", data=excel_data, file_name="LLKK_Final_Elo.xlsx")
 
 else:
     st.info("Please upload a valid Excel file to start.")
