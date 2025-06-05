@@ -60,6 +60,8 @@ uploaded_file = st.file_uploader("📂 Upload LLKK Excel file", type=["xlsx"])
 
 if uploaded_file:
     df_raw = pd.read_excel(uploaded_file)
+    df_raw.columns = df_raw.columns.str.strip()  # ✅ FIX column name issues
+
     st.subheader("📄 Raw Uploaded Data")
     st.dataframe(df_raw)
 
@@ -83,7 +85,6 @@ if uploaded_file:
     df_processed = df[['Lab', 'Parameter_ID', 'CV_Mar', 'Ratio_Mar', 'Rank_Feb']].rename(
         columns={'Parameter_ID': 'Parameter'}
     )
-
     df = df_processed.copy()
 
     # ──────────────────────────────
