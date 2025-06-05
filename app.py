@@ -45,7 +45,7 @@ def get_test_icon(parameter):
 # App Config
 # ──────────────────────────────
 st.set_page_config(layout="wide")
-st.image("Header.png", use_column_width=True)
+st.image("Header.png", use_container_width=True)
 
 lab_avatars = {
     "Lab_A": os.path.join("lab_a.png"),
