@@ -60,12 +60,12 @@ uploaded_file = st.file_uploader("📂 Upload LLKK Excel file", type=["xlsx"])
 
 if uploaded_file:
     df_raw = pd.read_excel(uploaded_file)
-    df_raw.columns = df_raw.columns.str.strip()  # ✅ FIX column name issues
+    df_raw.columns = df_raw.columns.str.strip()  # clean column names
 
     st.subheader("📄 Raw Uploaded Data")
     st.dataframe(df_raw)
 
-    # Map parameters
+    # ─── Normalize input ─────────────────────
     param_map = {
         "Glucose": "Glu",
         "Creatinine": "Cre",
@@ -74,6 +74,7 @@ if uploaded_file:
     }
 
     df = df_raw.copy()
+    df['Lab'] = df['Lab'].str.strip().str.replace(" ", "_")  # fix for "Lab A"
     df['Parameter_Code'] = df['Parameter'].map(param_map)
     df['Level_Num'] = df['Level'].str.extract(r'(\d)').fillna("1")
     df['Parameter_ID'] = df['Parameter_Code'] + "_L" + df['Level_Num']
@@ -81,15 +82,12 @@ if uploaded_file:
     df['Ratio_Mar'] = df['CV']
     df['Rank_Feb'] = 1500
 
-    # Prepare processed dataframe
     df_processed = df[['Lab', 'Parameter_ID', 'CV_Mar', 'Ratio_Mar', 'Rank_Feb']].rename(
         columns={'Parameter_ID': 'Parameter'}
     )
     df = df_processed.copy()
 
-    # ──────────────────────────────
-    # Bonus & Penalty
-    # ──────────────────────────────
+    # ─── Bonus & Penalty ─────────────────────
     def calculate_bonus_penalty(row):
         if pd.isna(row['CV_Mar']) or pd.isna(row['Ratio_Mar']):
             return 0, 10
@@ -102,18 +100,16 @@ if uploaded_file:
 
     df[['Bonus', 'Penalty']] = df.apply(lambda row: pd.Series(calculate_bonus_penalty(row)), axis=1)
     df['Final_Elo'] = df['Rank_Feb'] + df['Bonus'] - df['Penalty']
-
     df['Parameter_Icon'] = df['Parameter'].apply(get_test_icon)
     df['Lab_Display'] = df['Lab'].apply(get_lab_avatar_markdown)
 
-    # ──────────────────────────────
-    # Display Tables
-    # ──────────────────────────────
+    # ─── Bonus Table ─────────────────────
     st.markdown("### 🎯 Bonus and Penalty Applied", unsafe_allow_html=True)
     st.write(df[['Lab_Display', 'Parameter_Icon', 'Bonus', 'Penalty', 'Final_Elo']]
              .rename(columns={'Lab_Display': 'Lab', 'Parameter_Icon': 'Test'})
              .to_html(escape=False, index=False), unsafe_allow_html=True)
 
+    # ─── Elo Battle Table ─────────────────────
     final_elos = df.groupby('Lab')['Final_Elo'].mean().reset_index()
     final_elos['Lab_Display'] = final_elos['Lab'].apply(get_lab_avatar_markdown)
 
@@ -122,9 +118,7 @@ if uploaded_file:
              .rename(columns={'Lab_Display': 'Lab'})
              .to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # ──────────────────────────────
-    # Avatar Cards with Medals
-    # ──────────────────────────────
+    # ─── Legend Ranking Cards ─────────────────────
     st.subheader("🏆 Legend Ranking View")
     ranked_labs = final_elos.sort_values(by='Final_Elo', ascending=False).reset_index(drop=True)
     medals = ["🥇", "🥈", "🥉"]
@@ -135,7 +129,7 @@ if uploaded_file:
         medal = medals[idx] if idx < len(medals) else "🏅"
         st.markdown(f"""
             <div style='border: 2px solid #ccc; border-radius: 12px; padding: 10px 16px; margin: 10px 0; display: flex; align-items: center; background-color: #f9f9f9;'>
-                <img src='data:image/png;base64,{encode_image(lab_avatars[lab])}' width='60' style='margin-right: 16px; border-radius: 8px;'/>
+                <img src='data:image/png;base64,{encode_image(lab_avatars.get(lab, ""))}' width='60' style='margin-right: 16px; border-radius: 8px;'/>
                 <div>
                     <div style='font-size: 20px; font-weight: bold;'>{medal} {lab}</div>
                     <div style='font-size: 16px;'>Final Elo: <b>{elo:.2f}</b></div>
@@ -143,9 +137,7 @@ if uploaded_file:
             </div>
         """, unsafe_allow_html=True)
 
-    # ──────────────────────────────
-    # Champion Display
-    # ──────────────────────────────
+    # ─── Champion of the Month ─────────────────────
     st.markdown("## 👑 Champion of the Month")
     max_elo = final_elos['Final_Elo'].max()
     top_labs = final_elos[final_elos['Final_Elo'] == max_elo]
@@ -154,9 +146,7 @@ if uploaded_file:
         st.markdown(f"### 🏆 {row['Lab']} — Final Elo: **{row['Final_Elo']:.2f}**")
         st.success(f"🎉 Congratulations {row['Lab']}! You are crowned this month’s Champion in Kingdom Kvalis.")
 
-    # ──────────────────────────────
-    # Download
-    # ──────────────────────────────
+    # ─── Download Button ─────────────────────
     st.subheader("📁 Download Final Elo Table")
     def to_excel(dataframe):
         output = BytesIO()
