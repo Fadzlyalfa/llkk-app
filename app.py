@@ -9,7 +9,6 @@ from itertools import combinations
 # ──────────────────────────────
 # Utility Functions
 # ──────────────────────────────
-
 def encode_image(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
@@ -46,7 +45,7 @@ def get_test_icon(parameter):
 # App Config
 # ──────────────────────────────
 st.set_page_config(layout="wide")
-st.title("🧝 LLKK - Lab Legend Kingdom Kvalis")
+st.image("Header.png", use_column_width=True)
 
 lab_avatars = {
     "Lab_A": os.path.join("lab_a.png"),
