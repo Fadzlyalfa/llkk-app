@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 
 def run():
-    st.set_page_config(page_title="Battle Log", layout="wide", page_icon="⚔️")
     st.title("📜 LLKK Battle Log")
 
     if "llkk_data" not in st.session_state:
