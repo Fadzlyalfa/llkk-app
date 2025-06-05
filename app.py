@@ -1,51 +1,18 @@
+# LLKK App — Battle-Based Elo System (Stage 1)
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import os
 import base64
 from io import BytesIO
+from itertools import combinations
 
-# ──────────────────────────────
-# Utility Functions
-# ──────────────────────────────
-
-def encode_image(path):
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
-
-def get_lab_avatar_markdown(lab_name):
-    if lab_name in lab_avatars:
-        return f'<img src="data:image/png;base64,{encode_image(lab_avatars[lab_name])}" width="30"/> {lab_name}'
-    return lab_name
-
-def get_test_icon(parameter):
-    if parameter.startswith("Glu"):
-        return "🩸 Glucose"
-    elif parameter.startswith("Cre"):
-        return "💧 Creatinine"
-    elif parameter.startswith("Chol"):
-        return "🥚 Cholesterol"
-    elif parameter.startswith("HbA1c"):
-        return "🧪 HbA1c"
-    elif parameter.startswith("ALT"):
-        return "🍷 ALT"
-    elif parameter.startswith("AST"):
-        return "🔥 AST"
-    elif parameter.startswith("Urea"):
-        return "🚽 Urea"
-    elif parameter.startswith("Alb"):
-        return "🎵 Albumin"
-    elif parameter.startswith("TP"):
-        return "📊 Total Protein"
-    elif parameter.startswith("ALP"):
-        return "🧱 ALP"
-    return parameter
-
-# ──────────────────────────────
-# App Config
-# ──────────────────────────────
+# ────────────────
+# Config & Images
+# ────────────────
 st.set_page_config(layout="wide")
-st.title("🧝 LLKK - Lab Legend Kingdom Kvalis")
+st.title("⚔️ LLKK Battle Arena — Parameter-Level Elo Showdown")
 
 lab_avatars = {
     "Lab_A": os.path.join("lab_a.png"),
@@ -53,109 +20,88 @@ lab_avatars = {
     "Lab_C": os.path.join("lab_c.png")
 }
 
-# ──────────────────────────────
-# Upload File
-# ──────────────────────────────
-uploaded_file = st.file_uploader("📂 Upload LLKK Excel file", type=["xlsx"])
+def encode_image(path):
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
 
-if uploaded_file:
-    df_raw = pd.read_excel(uploaded_file)
-    df_raw.columns = df_raw.columns.str.strip()  # clean column names
+def get_avatar_html(lab):
+    if lab in lab_avatars:
+        return f"<img src='data:image/png;base64,{encode_image(lab_avatars[lab])}' width='30'/> {lab}"
+    return lab
 
-    st.subheader("📄 Raw Uploaded Data")
-    st.dataframe(df_raw)
+# ────────────────
+# Upload Excel File
+# ────────────────
+file = st.file_uploader("📂 Upload CV dataset", type=["xlsx"])
 
-    # ─── Normalize input ─────────────────────
-    param_map = {
-        "Glucose": "Glu",
-        "Creatinine": "Cre",
-        "Cholesterol": "Chol",
-        "Cholestetol": "Chol",  # typo fix
-    }
+if file:
+    df = pd.read_excel(file)
+    df.columns = df.columns.str.strip()
+    df['Lab'] = df['Lab'].str.strip().str.replace(" ", "_")
 
-    df = df_raw.copy()
-    df['Lab'] = df['Lab'].str.strip().str.replace(" ", "_")  # fix for "Lab A"
+    # Construct Parameter_ID (e.g., Glu_L1)
+    param_map = {"Glucose": "Glu", "Creatinine": "Cre", "Cholesterol": "Chol", "Cholestetol": "Chol"}
     df['Parameter_Code'] = df['Parameter'].map(param_map)
     df['Level_Num'] = df['Level'].str.extract(r'(\d)').fillna("1")
     df['Parameter_ID'] = df['Parameter_Code'] + "_L" + df['Level_Num']
-    df['CV_Mar'] = df['CV']
-    df['Ratio_Mar'] = df['CV']
-    df['Rank_Feb'] = 1500
+    df = df[['Lab', 'Parameter_ID', 'CV']]
 
-    df_processed = df[['Lab', 'Parameter_ID', 'CV_Mar', 'Ratio_Mar', 'Rank_Feb']].rename(
-        columns={'Parameter_ID': 'Parameter'}
-    )
-    df = df_processed.copy()
+    # Initialize Elo
+    base_elo = 1500
+    lab_elos = {lab: base_elo for lab in df['Lab'].unique()}
+    k_factor = 16
 
-    # ─── Bonus & Penalty ─────────────────────
-    def calculate_bonus_penalty(row):
-        if pd.isna(row['CV_Mar']) or pd.isna(row['Ratio_Mar']):
-            return 0, 10
-        bonus = 0
-        if row['CV_Mar'] < 2:
-            bonus += 2
-        if row['Ratio_Mar'] < 1.5:
-            bonus += 1
-        return bonus, 0
+    battle_log = []
 
-    df[['Bonus', 'Penalty']] = df.apply(lambda row: pd.Series(calculate_bonus_penalty(row)), axis=1)
-    df['Final_Elo'] = df['Rank_Feb'] + df['Bonus'] - df['Penalty']
-    df['Parameter_Icon'] = df['Parameter'].apply(get_test_icon)
-    df['Lab_Display'] = df['Lab'].apply(get_lab_avatar_markdown)
+    for test_id in df['Parameter_ID'].unique():
+        subset = df[df['Parameter_ID'] == test_id]
+        labs = subset['Lab'].tolist()
 
-    # ─── Bonus Table ─────────────────────
-    st.markdown("### 🎯 Bonus and Penalty Applied", unsafe_allow_html=True)
-    st.write(df[['Lab_Display', 'Parameter_Icon', 'Bonus', 'Penalty', 'Final_Elo']]
-             .rename(columns={'Lab_Display': 'Lab', 'Parameter_Icon': 'Test'})
-             .to_html(escape=False, index=False), unsafe_allow_html=True)
+        for lab1, lab2 in combinations(labs, 2):
+            cv1 = subset[subset['Lab'] == lab1]['CV'].values[0]
+            cv2 = subset[subset['Lab'] == lab2]['CV'].values[0]
 
-    # ─── Elo Battle Table ─────────────────────
-    final_elos = df.groupby('Lab')['Final_Elo'].mean().reset_index()
-    final_elos['Lab_Display'] = final_elos['Lab'].apply(get_lab_avatar_markdown)
+            # Determine winner
+            if cv1 == cv2:
+                outcome = 0.5
+            elif cv1 < cv2:
+                outcome = 1  # lab1 wins
+            else:
+                outcome = 0  # lab2 wins
 
-    st.markdown("### ⚔️ Elo Battle Summary", unsafe_allow_html=True)
-    st.write(final_elos[['Lab_Display', 'Final_Elo']]
-             .rename(columns={'Lab_Display': 'Lab'})
-             .to_html(escape=False, index=False), unsafe_allow_html=True)
+            R1 = 10 ** (lab_elos[lab1] / 400)
+            R2 = 10 ** (lab_elos[lab2] / 400)
+            E1 = R1 / (R1 + R2)
+            E2 = R2 / (R1 + R2)
 
-    # ─── Legend Ranking Cards ─────────────────────
-    st.subheader("🏆 Legend Ranking View")
-    ranked_labs = final_elos.sort_values(by='Final_Elo', ascending=False).reset_index(drop=True)
-    medals = ["🥇", "🥈", "🥉"]
+            # Update Elo
+            delta1 = k_factor * (outcome - E1)
+            delta2 = -delta1
+            lab_elos[lab1] += delta1
+            lab_elos[lab2] += delta2
 
-    for idx, row in ranked_labs.iterrows():
-        lab = row['Lab']
-        elo = row['Final_Elo']
-        medal = medals[idx] if idx < len(medals) else "🏅"
-        st.markdown(f"""
-            <div style='border: 2px solid #ccc; border-radius: 12px; padding: 10px 16px; margin: 10px 0; display: flex; align-items: center; background-color: #f9f9f9;'>
-                <img src='data:image/png;base64,{encode_image(lab_avatars.get(lab, ""))}' width='60' style='margin-right: 16px; border-radius: 8px;'/>
-                <div>
-                    <div style='font-size: 20px; font-weight: bold;'>{medal} {lab}</div>
-                    <div style='font-size: 16px;'>Final Elo: <b>{elo:.2f}</b></div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+            battle_log.append({
+                "Parameter": test_id,
+                "Lab_1": lab1,
+                "CV_1": cv1,
+                "Lab_2": lab2,
+                "CV_2": cv2,
+                "Winner": lab1 if outcome == 1 else (lab2 if outcome == 0 else "Draw"),
+                "Δ_Lab_1": round(delta1, 2),
+                "Δ_Lab_2": round(delta2, 2)
+            })
 
-    # ─── Champion of the Month ─────────────────────
-    st.markdown("## 👑 Champion of the Month")
-    max_elo = final_elos['Final_Elo'].max()
-    top_labs = final_elos[final_elos['Final_Elo'] == max_elo]
-    for _, row in top_labs.iterrows():
-        st.image(lab_avatars.get(row['Lab'], ""), width=150)
-        st.markdown(f"### 🏆 {row['Lab']} — Final Elo: **{row['Final_Elo']:.2f}**")
-        st.success(f"🎉 Congratulations {row['Lab']}! You are crowned this month’s Champion in Kingdom Kvalis.")
+    # ────────────────
+    # Display Results
+    # ────────────────
+    st.subheader("📜 Battle Log")
+    st.dataframe(pd.DataFrame(battle_log))
 
-    # ─── Download Button ─────────────────────
-    st.subheader("📁 Download Final Elo Table")
-    def to_excel(dataframe):
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            dataframe.to_excel(writer, index=False, sheet_name='Final_Elo')
-        return output.getvalue()
-
-    excel_data = to_excel(final_elos)
-    st.download_button("Download Elo Results", data=excel_data, file_name="LLKK_Final_Elo.xlsx")
+    st.subheader("🏁 Final Elo Scores")
+    final_table = pd.DataFrame.from_dict(lab_elos, orient='index', columns=['Final_Elo']).reset_index()
+    final_table.rename(columns={'index': 'Lab'}, inplace=True)
+    final_table['Avatar'] = final_table['Lab'].apply(get_avatar_html)
+    st.write(final_table[['Avatar', 'Final_Elo']].to_html(escape=False, index=False), unsafe_allow_html=True)
 
 else:
-    st.info("Please upload a valid Excel file to start.")
+    st.info("Please upload your LLKK Excel file.")
