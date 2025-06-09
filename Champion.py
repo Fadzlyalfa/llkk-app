@@ -1,57 +1,48 @@
 import streamlit as st
 import pandas as pd
 
-def run():
-    st.set_page_config(page_title="LLKK Champion", layout="wide", page_icon="🏆")
-    st.title("🏆 LLKK Champion Board")
+# Set page configuration
+st.set_page_config(page_title="Champion", layout="wide", page_icon="👑")
 
-    if "llkk_data" not in st.session_state:
-        st.warning("Please upload data in the Home page first.")
-        return
+# Title
+st.title("👑 LLKK Champion Board")
 
-    # Ratings must be computed in BattleLog first
-    if "final_scores" not in st.session_state:
-        st.error("Please view the Battle Log first to initialize scores.")
-        return
+# Check for data in session state
+if "llkk_data" not in st.session_state:
+    st.warning("Please enter or upload data from the Home or Data Entry page.")
+    st.stop()
 
-    results = st.session_state["final_scores"]
-    results = results.sort_values("Total_Score", ascending=False).reset_index(drop=True)
+df = st.session_state["llkk_data"]
 
-    # Add rank & medal
-    medals = ["🥇", "🥈", "🥉"]
-    results["Rank"] = results.index + 1
-    results["Medal"] = results["Rank"].apply(lambda x: medals[x-1] if x <= 3 else "")
+required_columns = {"Lab", "Parameter", "Level", "CV", "n", "working_days", "Month"}
+if not required_columns.issubset(df.columns):
+    st.error(f"Missing required columns. Required: {', '.join(required_columns)}")
+    st.stop()
 
-    # Optional avatars — replace with your actual avatar image mapping
-    avatar_map = {
-        "Lab_A": "🧪",
-        "Lab_B": "🔬",
-        "Lab_C": "💉",
-        "Lab_D": "⚗️",
-        "Lab_E": "🧬"
-    }
-    results["Avatar"] = results["Lab"].map(avatar_map).fillna("🏷️")
+# Preprocessing
+df = df.copy()
+df = df.dropna(subset=["CV", "n", "working_days"])
+df["CV"] = pd.to_numeric(df["CV"], errors="coerce")
+df["n"] = pd.to_numeric(df["n"], errors="coerce")
+df["working_days"] = pd.to_numeric(df["working_days"], errors="coerce")
 
-    # Display
-    for i, row in results.iterrows():
-        with st.container():
-            st.markdown(f"""
-                <div style="background-color:#f0f2f6;padding:1rem;border-radius:1rem;margin-bottom:1rem;">
-                    <h3>{row["Medal"]} {row["Avatar"]} <b>{row["Lab"]}</b></h3>
-                    <ul>
-                        <li><b>Rank:</b> {row["Rank"]}</li>
-                        <li><b>Final Elo:</b> {row["Final_Elo"]}</li>
-                        <li><b>Bonus:</b> {row["Bonus"]}</li>
-                        <li><b>Penalty:</b> {row["Penalty"]}</li>
-                        <li><b>Total Score:</b> <span style="color:green;"><b>{row["Total_Score"]}</b></span></li>
-                    </ul>
-                </div>
-            """, unsafe_allow_html=True)
+# Calculate total score using a simplified Elo-inspired Fadzly algorithm
+# Score = (100 - CV) * sqrt(n) * (working_days / 30)
+df["score"] = (100 - df["CV"]) * df["n"].pow(0.5) * (df["working_days"] / 30)
 
-    st.markdown(
-        "<hr style='margin-top: 2rem; margin-bottom: 1rem;'>"
-        "<div style='text-align: center; color: gray;'>"
-        "🏰 LLKK — Lab Legend Kingdom Kvalis | Champions of Quality"
-        "</div>",
-        unsafe_allow_html=True
-    )
+# Sum score per lab
+lab_scores = df.groupby("Lab")["score"].sum().reset_index()
+lab_scores["Rank"] = lab_scores["score"].rank(method="min", ascending=False).astype(int)
+lab_scores = lab_scores.sort_values(by="Rank")
+
+# Display
+st.dataframe(lab_scores, use_container_width=True)
+
+# Footer
+st.markdown(
+    "<hr style='margin-top: 2rem; margin-bottom: 1rem;'>"
+    "<div style='text-align: center; color: gray;'>"
+    "© 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE"
+    "</div>",
+    unsafe_allow_html=True
+)
