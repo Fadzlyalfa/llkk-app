@@ -20,7 +20,7 @@ def run():
     input_data = []
     st.subheader("📝 Enter Your Data")
 
-    # 🧾 Column headers (only once)
+    # Column headers
     headers = st.columns(8)
     headers[0].markdown("**Lab**")
     headers[1].markdown("**Parameter**")
@@ -56,11 +56,14 @@ def run():
             "Ratio": ratio
         })
 
-    # Preview table
+    # Create DataFrame
     df = pd.DataFrame(input_data)
     st.subheader("📊 Preview of Entered Data")
     st.dataframe(df)
 
-    # Download as CSV
+    # Save to session state
+    st.session_state["llkk_data"] = df
+
+    # Download option
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Download CSV", csv, "llkk_data_entry.csv", "text/csv")
