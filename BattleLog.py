@@ -1,18 +1,29 @@
+# BattleLog.py
+
 import streamlit as st
 import pandas as pd
 
 def run():
     st.title("⚔️ LLKK Battle Log")
 
-    required_columns = {"Level", "Cv", "Ratio", "Parameter", "Lab", "Month"}
-    if "llkk_data" not in st.session_state:
-        st.error("No data found. Please enter data first in Home or Data Entry.")
-        return
+    # Check if data from DataEntry exists
+    if "llkk_data" in st.session_state:
+        df = st.session_state["llkk_data"]
 
-    df = st.session_state["llkk_data"]
-    if not required_columns.issubset(df.columns):
-        st.error("Missing required columns. Required: Level, Cv, Ratio, Parameter, Lab, Month")
-        return
+        st.success("✅ Data loaded from Data Entry.")
+        st.markdown("### 📋 Submitted QC Data")
+        st.dataframe(df)
 
-    # Example placeholder battle logic:
-    st.dataframe(df.sort_values(by=["Parameter", "Level"]), use_container_width=True)
+        # Optional stats summary
+        st.markdown("### 📊 Summary Statistics")
+        with st.expander("View stats by Lab"):
+            summary = df.groupby("Lab").agg({
+                "CV (%)": ["mean", "min", "max"],
+                "Ratio": ["mean", "min", "max"]
+            }).round(2)
+            st.dataframe(summary)
+
+        st.info("🛠️ Coming soon: Apply Fadzly Algorithm to simulate performance battles.")
+
+    else:
+        st.error("🚫 No data found. Please enter data first in the Data Entry tab.")
