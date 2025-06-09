@@ -1,64 +1,68 @@
 import streamlit as st
 import pandas as pd
-from itertools import combinations
+import itertools
 
-st.title("📜 LLKK Battle Log")
+def run():
+    st.set_page_config(page_title="Battle Log", layout="wide", page_icon="⚔️")
+    st.title("📜 LLKK Battle Log")
 
-if "llkk_data" not in st.session_state:
-    st.warning("Please upload data in the Home page first.")
-    st.stop()
+    if "llkk_data" not in st.session_state:
+        st.warning("Please upload data in the Home page first.")
+        return
 
-df = st.session_state.llkk_data.copy()
+    df = st.session_state.llkk_data.copy()
 
-# Clean column names
-df.columns = df.columns.str.strip().str.title()
+    # Standardize column names just in case
+    df.columns = df.columns.str.strip().str.title()
 
-# Check required columns
-required_cols = ["Lab", "Parameter", "Level", "Cv"]
-if not all(col in df.columns for col in required_cols):
-    st.error(f"Missing required columns: {set(required_cols) - set(df.columns)}")
-    st.stop()
+    required_cols = {"Lab", "Parameter", "Level", "Cv"}
+    if not required_cols.issubset(df.columns):
+        st.error("Missing required columns in uploaded data. Required: Lab, Parameter, Level, CV")
+        return
 
-# Generate battle log
-battle_rows = []
+    # Prepare battle results
+    battles = []
 
-for (param, level), group in df.groupby(["Parameter", "Level"]):
-    labs = group["Lab"].unique()
-
-    for lab1, lab2 in combinations(labs, 2):
-        cv1 = group[group["Lab"] == lab1]["Cv"].values
-        cv2 = group[group["Lab"] == lab2]["Cv"].values
-
-        if len(cv1) == 0 or len(cv2) == 0:
+    for (param, level), group in df.groupby(["Parameter", "Level"]):
+        labs = group["Lab"].unique()
+        if len(labs) < 2:
             continue
 
-        cv1 = float(cv1[0])
-        cv2 = float(cv2[0])
-        winner = lab1 if cv1 < cv2 else lab2
+        # Generate all possible lab-vs-lab battles
+        for lab1, lab2 in itertools.combinations(labs, 2):
+            cv1 = group[group["Lab"] == lab1]["Cv"].values[0]
+            cv2 = group[group["Lab"] == lab2]["Cv"].values[0]
 
-        battle_rows.append({
-            "Parameter": f"{param}_{level}",
-            "Lab_1": lab1,
-            "Lab_2": lab2,
-            "CV_1": cv1,
-            "CV_2": cv2,
-            "Winner": winner,
-            "Δ_Lab_1": round(cv2 - cv1, 2),
-            "Δ_Lab_2": round(cv1 - cv2, 2)
-        })
+            # Skip if missing data
+            if pd.isna(cv1) or pd.isna(cv2):
+                continue
 
-battle_df = pd.DataFrame(battle_rows)
+            winner = lab1 if cv1 < cv2 else lab2
+            delta = round(abs(cv1 - cv2) * 10, 1)
 
-if battle_df.empty:
-    st.info("No battles generated.")
-else:
-    st.dataframe(battle_df, use_container_width=True)
+            battles.append({
+                "Parameter": f"{param}_{level}",
+                "Lab_1": lab1,
+                "Lab_2": lab2,
+                "CV_1": cv1,
+                "CV_2": cv2,
+                "Winner": winner,
+                "Δ_Lab_1": +delta if winner == lab1 else -delta,
+                "Δ_Lab_2": -delta if winner == lab1 else +delta
+            })
 
-# Footer
-st.markdown(
-    "<hr style='margin-top: 2rem; margin-bottom: 1rem;'>"
-    "<div style='text-align: center; color: gray;'>"
-    "© 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE"
-    "</div>",
-    unsafe_allow_html=True
-)
+    # Display results
+    if battles:
+        battle_df = pd.DataFrame(battles)
+        st.dataframe(battle_df, use_container_width=True)
+    else:
+        st.info("No valid lab comparisons could be generated.")
+
+    # Footer
+    st.markdown(
+        "<hr style='margin-top: 2rem; margin-bottom: 1rem;'>"
+        "<div style='text-align: center; color: gray;'>"
+        "© 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE"
+        "</div>",
+        unsafe_allow_html=True
+    )
