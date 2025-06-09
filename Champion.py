@@ -1,41 +1,44 @@
+# Champion.py
+
 import streamlit as st
 import pandas as pd
 
-# Set page configuration
+# Page setup
 st.set_page_config(page_title="Champion", layout="wide", page_icon="👑")
-
-# Title
 st.title("👑 LLKK Champion Board")
 
-# Check for data in session state
+# Ensure data is available
 if "llkk_data" not in st.session_state:
     st.warning("Please enter or upload data from the Home or Data Entry page.")
     st.stop()
 
 df = st.session_state["llkk_data"]
 
-required_columns = {"Lab", "Parameter", "Level", "CV", "n", "working_days", "Month"}
+# Check required columns
+required_columns = {"Lab", "Parameter", "Level", "CV (%)", "n (QC)", "Working Days", "Month"}
 if not required_columns.issubset(df.columns):
     st.error(f"Missing required columns. Required: {', '.join(required_columns)}")
     st.stop()
 
-# Preprocessing
+# Prepare data
 df = df.copy()
-df = df.dropna(subset=["CV", "n", "working_days"])
-df["CV"] = pd.to_numeric(df["CV"], errors="coerce")
-df["n"] = pd.to_numeric(df["n"], errors="coerce")
-df["working_days"] = pd.to_numeric(df["working_days"], errors="coerce")
+df = df.dropna(subset=["CV (%)", "n (QC)", "Working Days"])
 
-# Calculate total score using a simplified Elo-inspired Fadzly algorithm
-# Score = (100 - CV) * sqrt(n) * (working_days / 30)
-df["score"] = (100 - df["CV"]) * df["n"].pow(0.5) * (df["working_days"] / 30)
+# Convert columns to numeric
+df["CV (%)"] = pd.to_numeric(df["CV (%)"], errors="coerce")
+df["n (QC)"] = pd.to_numeric(df["n (QC)"], errors="coerce")
+df["Working Days"] = pd.to_numeric(df["Working Days"], errors="coerce")
 
-# Sum score per lab
+# 🧠 Fadzly Algorithm: simplified score model
+df["score"] = (100 - df["CV (%)"]) * df["n (QC)"].pow(0.5) * (df["Working Days"] / 30)
+
+# 🏆 Leaderboard: total score per lab
 lab_scores = df.groupby("Lab")["score"].sum().reset_index()
 lab_scores["Rank"] = lab_scores["score"].rank(method="min", ascending=False).astype(int)
 lab_scores = lab_scores.sort_values(by="Rank")
 
-# Display
+# Display leaderboard
+st.subheader("🏅 LLKK Total Scores")
 st.dataframe(lab_scores, use_container_width=True)
 
 # Footer
