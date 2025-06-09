@@ -20,7 +20,10 @@ def run():
 
     df = st.session_state["llkk_data"]
 
-    # Filter data for the logged-in lab
+    # ================================
+    # 🔍 1. Logged-in Lab View
+    # ================================
+    st.markdown(f"### 🧾 `{lab}` Submission")
     lab_df = df[df["Lab"] == lab]
 
     if lab_df.empty:
@@ -29,7 +32,6 @@ def run():
         st.success(f"✅ Showing battle records for `{lab}`.")
         st.dataframe(lab_df)
 
-        # Optional summary
         with st.expander("📊 Summary Stats"):
             summary = lab_df.groupby(["Parameter", "Level"]).agg({
                 "CV (%)": ["mean", "min", "max"],
@@ -37,4 +39,18 @@ def run():
             }).round(2)
             st.dataframe(summary)
 
-        st.info("💡 Next step: Apply the Fadzly Algorithm to simulate battles.")
+    # ================================
+    # 🧩 2. All Labs Combined Preview
+    # ================================
+    st.markdown("### 🧩 All Labs Combined (for Battle Preview)")
+    st.dataframe(df)
+
+    # Optional combined summary
+    with st.expander("📊 Overall Summary by Lab"):
+        combined_summary = df.groupby("Lab").agg({
+            "CV (%)": ["mean", "min", "max"],
+            "Ratio": ["mean", "min", "max"]
+        }).round(2)
+        st.dataframe(combined_summary)
+
+    st.info("💡 You're ready to apply the Fadzly Algorithm for full multi-lab battle simulation.")
