@@ -1,26 +1,9 @@
+# BattleLog.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-
-# Dictionary of EFLM target CVs (%), aligned with LLKK parameters
-EFLM_CV = {
-    "Albumin": 1.9,
-    "ALT": 7.2,
-    "AST": 6.4,
-    "Bilirubin": 8.6,
-    "Cholesterol": 3.6,
-    "Creatinine": 4.3,
-    "Direct Bilirubin": 14.8,
-    "Glucose": 2.9,
-    "HDL Cholesterol": 5.1,
-    "LDL Cholesterol": 4.1,
-    "Potassium": 1.8,
-    "Sodium": 0.8,
-    "Total Protein": 2.0,
-    "Triglyceride": 4.6,
-    "Urea": 2.7,
-    "Uric Acid": 4.3
-}
+import itertools
 
 def run():
     st.title("⚔️ LLKK Battle Log")
@@ -36,98 +19,115 @@ def run():
         st.error("🚫 No data found. Please submit data through the Data Entry tab.")
         return
 
-    df = st.session_state["llkk_data"]
+    df = st.session_state["llkk_data"].copy()
 
-    # Section 1 — Individual Lab View
-    st.markdown(f"### 🧾 `{lab}` Submission")
+    # Show current lab data
+    st.markdown(f"### 📎 `{lab}` Submission")
     lab_df = df[df["Lab"] == lab]
-    if lab_df.empty:
-        st.warning(f"⚠️ No data entries found yet for `{lab}`.")
-    else:
-        st.success(f"✅ Showing battle records for `{lab}`.")
-        st.dataframe(lab_df)
+    st.dataframe(lab_df)
 
-        with st.expander("📊 Summary Stats"):
-            summary = lab_df.groupby(["Parameter", "Level"]).agg({
-                "CV (%)": ["mean", "min", "max"],
-                "Ratio": ["mean", "min", "max"]
-            }).round(2)
-            st.dataframe(summary)
-
-    # Section 2 — Combined Preview
-    st.markdown("### 🧩 All Labs Combined (for Battle Preview)")
+    # Show all data
+    st.markdown("### 🧹 All Labs Combined")
     st.dataframe(df)
 
-    with st.expander("📊 Overall Summary by Lab"):
-        combined_summary = df.groupby("Lab").agg({
-            "CV (%)": ["mean", "min", "max"],
-            "Ratio": ["mean", "min", "max"]
-        }).round(2)
-        st.dataframe(combined_summary)
-
-    # Section 3 — Admin Control Panel
     if role == "admin":
         st.markdown("---")
         st.subheader("🛡️ Admin Control Panel")
-        if st.button("🛡️ Start Battle"):
-            simulate_battles(df)
+        if st.button("🛡️ Start Battle Simulation"):
+            simulate_fadzly_algorithm(df)
     else:
-        st.info("🟢 You have entered the battlefield. Awaiting admin to start the simulation.")
+        st.info("🟢 Awaiting admin to start the battle.")
 
-# Core Simulation Logic (AF = Fadzly Algorithm)
-def simulate_battles(df):
-    st.subheader("🏁 Battle Results")
+# --- EFLM Targets (hardcoded as per user doc) ---
+EFLM_TARGETS = {
+    "Albumin": 2.1,
+    "ALT": 6.0,
+    "ALP": 5.4,
+    "AST": 5.3,
+    "Bilirubin": 8.6,
+    "Cholesterol": 2.9,
+    "CK": 4.5,
+    "Creatinine": 3.4,
+    "GGT": 7.7,
+    "Glucose": 2.9,
+    "HDL Cholesterol": 4.0,
+    "LDH": 4.9,
+    "Potassium": 1.8,
+    "Sodium": 0.9,
+    "Total Protein": 2.0,
+    "Urea": 3.9,
+    "Uric Acid": 3.3
+}
 
-    df = df.dropna(subset=["CV (%)", "n (QC)", "Working Days"])
+def simulate_fadzly_algorithm(df):
+    st.subheader("🏁 Fadzly Battle Simulation")
+
+    df = df.dropna(subset=["CV (%)", "Ratio", "n (QC)", "Working Days"])
     df["CV (%)"] = pd.to_numeric(df["CV (%)"], errors="coerce")
-    df["n (QC)"] = pd.to_numeric(df["n (QC)"], errors="coerce")
-    df["Working Days"] = pd.to_numeric(df["Working Days"], errors="coerce")
+    df["Ratio"] = pd.to_numeric(df["Ratio"], errors="coerce")
 
-    # Step 1: Base score
-    df["BaseScore"] = (100 - df["CV (%)"]) * df["n (QC)"].pow(0.5) * (df["Working Days"] / 30)
+    # Initialize rating dictionary
+    ratings = {lab: 1500 for lab in df["Lab"].unique()}
+    K = 16
 
-    # Step 2: Bonus
-    df["Bonus"] = 0
-    df["Bonus"] += np.where(df["Ratio"] >= 1.0, 5, 0)
-    df["Bonus"] += df.apply(lambda row: 2 if row["Parameter"] in EFLM_CV and row["CV (%)"] <= EFLM_CV[row["Parameter"]] else 0, axis=1)
+    battle_logs = []
 
-    # Step 3: Penalty
-    df["Penalty"] = np.where(df[["Ratio", "CV (%)"]].isna().any(axis=1), -10, 0)
+    for (param, level, month), group in df.groupby(["Parameter", "Level", "Month"]):
+        labs = group.to_dict("records")
+        for lab1, lab2 in itertools.combinations(labs, 2):
+            labA = lab1["Lab"]
+            labB = lab2["Lab"]
+            cvA, cvB = lab1["CV (%)"], lab2["CV (%)"]
+            rA, rB = lab1["Ratio"], lab2["Ratio"]
 
-    # Step 4: Total Score
-    df["TotalScore"] = df["BaseScore"] + df["Bonus"] + df["Penalty"]
+            # --- CV Scoring ---
+            if abs(cvA - cvB) < 0.1:
+                cv_score_A, cv_score_B = 0.5, 0.5
+            elif cvA < cvB:
+                cv_score_A, cv_score_B = 1, 0
+            else:
+                cv_score_A, cv_score_B = 0, 1
 
-    # Step 5: Battle ranking
-    battle_results = []
-    grouped = df.groupby(["Parameter", "Level", "Month"])
-    for (param, level, month), group in grouped:
-        valid = group.dropna(subset=["TotalScore"])
-        if valid["Lab"].nunique() < 2:
-            continue
-        ranked = valid.sort_values("TotalScore", ascending=False).reset_index(drop=True)
-        ranked["Rank"] = ranked["TotalScore"].rank(method="min", ascending=False).astype(int)
-        ranked["Medal"] = ranked["Rank"].map({1: "🥇", 2: "🥈", 3: "🥉"})
+            # --- Ratio Scoring ---
+            if abs(rA - rB) < 0.05:
+                ratio_score_A, ratio_score_B = 0.5, 0.5
+            else:
+                closer_to_1 = lambda x: abs(x - 1)
+                if closer_to_1(rA) < closer_to_1(rB):
+                    ratio_score_A, ratio_score_B = 1, 0
+                else:
+                    ratio_score_A, ratio_score_B = 0, 1
 
-        for _, row in ranked.iterrows():
-            battle_results.append({
-                "Lab": row["Lab"],
+            final_A = (cv_score_A + ratio_score_A) / 2
+            final_B = (cv_score_B + ratio_score_B) / 2
+
+            # --- Elo Update ---
+            Ra, Rb = ratings[labA], ratings[labB]
+            Ea = 1 / (1 + 10 ** ((Rb - Ra) / 400))
+            Eb = 1 / (1 + 10 ** ((Ra - Rb) / 400))
+            ratings[labA] += K * (final_A - Ea)
+            ratings[labB] += K * (final_B - Eb)
+
+            # --- Log ---
+            battle_logs.append({
+                "Lab_A": labA,
+                "Lab_B": labB,
                 "Parameter": param,
                 "Level": level,
                 "Month": month,
-                "CV (%)": row["CV (%)"],
-                "Ratio": row["Ratio"],
-                "Base": round(row["BaseScore"], 2),
-                "Bonus": row["Bonus"],
-                "Penalty": row["Penalty"],
-                "Total Score": round(row["TotalScore"], 2),
-                "Rank": row["Rank"],
-                "Medal": row["Medal"]
+                "Score_A": round(final_A, 2),
+                "Score_B": round(final_B, 2),
+                "Updated_Rating_A": round(ratings[labA], 1),
+                "Updated_Rating_B": round(ratings[labB], 1)
             })
 
-    if battle_results:
-        battle_df = pd.DataFrame(battle_results)
-        st.session_state["fadzly_battles"] = battle_df
-        st.success("✅ Battle simulation completed using Fadzly Algorithm!")
-        st.dataframe(battle_df)
-    else:
-        st.info("🟢 You have entered the battlefield. Awaiting more labs for match-up.")
+    battle_df = pd.DataFrame(battle_logs)
+    rating_df = pd.DataFrame(sorted(ratings.items(), key=lambda x: -x[1]), columns=["Lab", "Final Rating"])
+
+    st.success("✅ Battle simulation completed with Elo updates.")
+    st.dataframe(rating_df)
+    st.markdown("---")
+    st.markdown("#### 🔹 Detailed Battle Log")
+    st.dataframe(battle_df)
+
+    st.session_state["fadzly_battles"] = rating_df
