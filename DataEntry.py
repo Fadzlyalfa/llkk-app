@@ -11,8 +11,15 @@ def run():
         st.warning("Please log in from the sidebar to access data entry.")
         st.stop()
 
-    lab = st.session_state["logged_in_lab"]
+    # 🧹 Reset button in sidebar
+    st.sidebar.markdown("### 🧹 Data Control")
+    if st.sidebar.button("Reset All Data"):
+        if "llkk_data" in st.session_state:
+            del st.session_state["llkk_data"]
+            st.success("✅ All LLKK data has been cleared.")
+            st.rerun()
 
+    lab = st.session_state["logged_in_lab"]
     parameters = ["Glucose", "Creatinine", "Cholesterol"]
     levels = ["L1", "L2"]
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
@@ -24,7 +31,6 @@ def run():
     input_data = []
     st.subheader(f"📝 Enter Data for: :green[{lab}]")
 
-    # Header row
     headers = st.columns(7)
     headers[0].markdown("**Parameter**")
     headers[1].markdown("**Level**")
@@ -43,13 +49,7 @@ def run():
         n_qc = cols[4].number_input("", min_value=0, max_value=100, key=f"n_{i}")
         working_days = cols[5].number_input("", min_value=1, max_value=31, key=f"wd_{i}")
 
-        # Calculate ratio
-        if n_qc > 0 and working_days > 0:
-            ratio = round(n_qc / working_days, 2)
-        else:
-            ratio = 0.0
-
-        # Use disabled number_input for visual consistency
+        ratio = round(n_qc / working_days, 2) if n_qc > 0 and working_days > 0 else 0.0
         cols[6].number_input("", value=ratio, disabled=True, key=f"ratio_{i}")
 
         input_data.append({
@@ -67,8 +67,12 @@ def run():
     st.subheader("📊 Preview of Entered Data")
     st.dataframe(df)
 
+    # Deduplicate logic (optional)
     if "llkk_data" in st.session_state:
-        st.session_state["llkk_data"] = pd.concat([st.session_state["llkk_data"], df], ignore_index=True)
+        existing = st.session_state["llkk_data"]
+        combined = pd.concat([existing, df], ignore_index=True)
+        combined = combined.drop_duplicates(subset=["Lab", "Parameter", "Level", "Month", "CV (%)", "n (QC)", "Working Days"])
+        st.session_state["llkk_data"] = combined
     else:
         st.session_state["llkk_data"] = df
 
