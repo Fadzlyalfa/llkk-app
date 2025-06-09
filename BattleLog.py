@@ -5,12 +5,12 @@ import numpy as np
 def run():
     st.title("⚔️ LLKK Battle Log")
 
-    # Check login
     if "logged_in_lab" not in st.session_state:
         st.warning("Please log in from the sidebar to view battle logs.")
         st.stop()
 
     lab = st.session_state["logged_in_lab"]
+    role = st.session_state.get("user_role", "lab")
 
     if "llkk_data" not in st.session_state:
         st.error("🚫 No data found. Please submit data through the Data Entry tab.")
@@ -18,7 +18,7 @@ def run():
 
     df = st.session_state["llkk_data"]
 
-    # 1. Current lab view
+    # Section 1 — Your Own Data
     st.markdown(f"### 🧾 `{lab}` Submission")
     lab_df = df[df["Lab"] == lab]
 
@@ -35,7 +35,7 @@ def run():
             }).round(2)
             st.dataframe(summary)
 
-    # 2. Combined preview
+    # Section 2 — All Labs Combined
     st.markdown("### 🧩 All Labs Combined (for Battle Preview)")
     st.dataframe(df)
 
@@ -46,33 +46,29 @@ def run():
         }).round(2)
         st.dataframe(combined_summary)
 
-    # 3. Battle button
-    if st.button("⚔️ Simulate Battles (Fadzly Algorithm)"):
-        simulate_battles(df)
+    # Section 3 — Admin-only Battle Trigger
+    if role == "admin":
+        st.markdown("---")
+        st.subheader("🛡️ Admin Control Panel")
+        if st.button("🛡️ Start Battle"):
+            simulate_battles(df)
+    else:
+        st.info("🟢 Awaiting admin to start the battle simulation.")
 
-# 🧠 Core logic: Fadzly Algorithm + bonus, penalty, medals
+# 🔁 Battle Simulation Logic (Fadzly Algorithm)
 def simulate_battles(df):
     st.subheader("🏁 Battle Results")
 
-    # Clean
     df = df.dropna(subset=["CV (%)", "n (QC)", "Working Days"])
     df["CV (%)"] = pd.to_numeric(df["CV (%)"], errors="coerce")
     df["n (QC)"] = pd.to_numeric(df["n (QC)"], errors="coerce")
     df["Working Days"] = pd.to_numeric(df["Working Days"], errors="coerce")
 
-    # Base score
     df["BaseScore"] = (100 - df["CV (%)"]) * df["n (QC)"].pow(0.5) * (df["Working Days"] / 30)
-
-    # Bonus: if Ratio >= 1.0 ➕ +5
-    df["Bonus"] = np.where(df["Ratio"] >= 1.0, 5, 0)
-
-    # Penalty: missing Ratio or CV ➖ -10
-    df["Penalty"] = np.where(df[["Ratio", "CV (%)"]].isna().any(axis=1), -10, 0)
-
-    # Final score
+    df["Bonus"] = df["Ratio"].apply(lambda x: 5 if x >= 1.0 else 0)
+    df["Penalty"] = df[["Ratio", "CV (%)"]].isna().any(axis=1).astype(int) * -10
     df["TotalScore"] = df["BaseScore"] + df["Bonus"] + df["Penalty"]
 
-    # Battle simulation per group
     battle_results = []
     grouped = df.groupby(["Parameter", "Level", "Month"])
 
@@ -83,8 +79,6 @@ def simulate_battles(df):
 
         ranked = valid.sort_values("TotalScore", ascending=False).reset_index(drop=True)
         ranked["Rank"] = ranked["TotalScore"].rank(method="min", ascending=False).astype(int)
-
-        # Medal assignment
         ranked["Medal"] = ranked["Rank"].map({1: "🥇", 2: "🥈", 3: "🥉"})
 
         for _, row in ranked.iterrows():
@@ -104,4 +98,4 @@ def simulate_battles(df):
         st.success("✅ Battle simulation completed!")
         st.dataframe(battle_df)
     else:
-        st.warning("⚠️ No valid battles found. Need at least 2 labs per parameter/level/month.")
+        st.info("🟢 You have entered the battlefield. Awaiting more labs for match-up.")
