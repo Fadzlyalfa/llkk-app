@@ -1,5 +1,3 @@
-# DataEntry.py
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -11,7 +9,7 @@ def run():
         st.warning("Please log in from the sidebar to access data entry.")
         st.stop()
 
-    # 🧹 Reset button in sidebar
+    # 🧹 Sidebar Reset
     st.sidebar.markdown("### 🧹 Data Control")
     if st.sidebar.button("Reset All Data"):
         if "llkk_data" in st.session_state:
@@ -20,34 +18,17 @@ def run():
             st.rerun()
 
     lab = st.session_state["logged_in_lab"]
-    
-    # ✅ Updated parameter list (17 items, alphabetically sorted)
-    parameters = [
-        "Albumin",
-        "Alanine Transaminase (ALT)",
-        "Alkaline Phosphatase (ALP)",
-        "Aspartate Transaminase (AST)",
-        "Chloride (Cl⁻)",
-        "Cholesterol",
-        "Creatinine",
-        "Direct Bilirubin",
-        "Glucose",
-        "HDL Cholesterol",
-        "Potassium (K⁺)",
-        "Sodium (Na⁺)",
-        "Total Bilirubin",
-        "Total Protein",
-        "Triglycerides",
-        "Urea",
-        "Uric Acid"
-    ]
-
+    parameters = sorted([
+        "Albumin", "ALT", "AST", "Bilirubin (Total)", "Cholesterol",
+        "Creatinine", "Direct Bilirubin", "GGT", "Glucose", "HDL Cholesterol",
+        "LDL Cholesterol", "Potassium", "Protein (Total)", "Sodium",
+        "Triglycerides", "Urea", "Uric Acid"
+    ])
     levels = ["L1", "L2"]
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-    num_rows = st.number_input("🔢 How many entries to input?", 
-                               min_value=1, max_value=50, value=5, step=1)
+    num_rows = st.number_input("🔢 How many entries to input?", min_value=1, max_value=50, value=5, step=1)
 
     input_data = []
     st.subheader(f"📝 Enter Data for: :green[{lab}]")
@@ -84,22 +65,27 @@ def run():
         })
 
     df = pd.DataFrame(input_data)
-    st.subheader("📊 Preview of Entered Data")
+    df = df[(df["CV (%)"] > 0) & (df["n (QC)"] > 0) & (df["Working Days"] > 0)]
+
+    st.subheader("📊 Preview of Valid Entries")
     st.dataframe(df)
 
-    # Merge & deduplicate
-    if "llkk_data" in st.session_state:
-        existing = st.session_state["llkk_data"]
-        combined = pd.concat([existing, df], ignore_index=True)
-        combined = combined.drop_duplicates(subset=["Lab", "Parameter", "Level", "Month", "CV (%)", "n (QC)", "Working Days"])
-        st.session_state["llkk_data"] = combined
-    else:
-        st.session_state["llkk_data"] = df
+    # Replace previous entries for same Lab+Parameter+Level+Month
+    if not df.empty:
+        if "llkk_data" in st.session_state:
+            existing = st.session_state["llkk_data"]
+            keys = ["Lab", "Parameter", "Level", "Month"]
+            updated = existing[~existing[keys].apply(tuple, axis=1).isin(df[keys].apply(tuple, axis=1))]
+            combined = pd.concat([updated, df], ignore_index=True)
+            combined = combined.drop_duplicates(subset=keys, keep="last")
+            st.session_state["llkk_data"] = combined
+        else:
+            st.session_state["llkk_data"] = df
 
     # Export CSV
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Download CSV", csv, "llkk_data_entry.csv", "text/csv")
 
-    # ✅ Confirm Entry into Battlefield (no simulation)
+    # ✅ Confirm Entry
     if st.button("⚔️ Submit to Battle"):
         st.success("🟢 You have entered the battlefield!")
