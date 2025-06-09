@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from PIL import Image
 
-# Set the page config — this must be the first Streamlit command
+# Set Streamlit config (must be first)
 st.set_page_config(page_title="LLKK - Lab Legend Kingdom Kvalis", layout="wide")
 
 # Sidebar menu
@@ -14,6 +14,9 @@ menu = st.sidebar.selectbox(
 # --- ROUTER ---
 if menu == "Home":
     def run():
+        # Display image header
+        st.image("Header.png", use_column_width=True)
+
         st.header("📤 Upload Your LLKK Excel Data")
         st.caption("Upload `.xlsx` file")
 
@@ -30,12 +33,13 @@ if menu == "Home":
                 # Standardize column names
                 df.columns = df.columns.str.strip().str.title()
 
-                # Store in session state for use in other pages
+                # Store in session_state for global access
                 st.session_state.llkk_data = df
 
                 st.success("✅ File uploaded successfully!")
                 st.markdown("### 👁️ Uploaded Preview")
                 st.dataframe(df, use_container_width=True)
+
             except Exception as e:
                 st.error(f"❌ Error reading file: {e}")
 
