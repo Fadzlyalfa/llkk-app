@@ -7,7 +7,6 @@ import numpy as np
 def run():
     st.title("📋 LLKK Direct Data Entry")
 
-    # Ensure login
     if "logged_in_lab" not in st.session_state:
         st.warning("Please log in from the sidebar to access data entry.")
         st.stop()
@@ -67,7 +66,7 @@ def run():
     st.subheader("📊 Preview of Entered Data")
     st.dataframe(df)
 
-    # Deduplication logic
+    # Merge & deduplicate
     if "llkk_data" in st.session_state:
         existing = st.session_state["llkk_data"]
         combined = pd.concat([existing, df], ignore_index=True)
@@ -76,53 +75,10 @@ def run():
     else:
         st.session_state["llkk_data"] = df
 
-    # CSV export
+    # Export CSV
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Download CSV", csv, "llkk_data_entry.csv", "text/csv")
 
-    # ⚔️ Submit to Battle
+    # ✅ Confirm Entry into Battlefield (no simulation)
     if st.button("⚔️ Submit to Battle"):
-        simulate_battles(st.session_state["llkk_data"])
-
-# 🔁 Battle logic with scoring, bonuses, penalties, and medals
-def simulate_battles(df):
-    st.subheader("🏁 Simulated Battle Results")
-
-    df = df.dropna(subset=["CV (%)", "n (QC)", "Working Days"])
-    df["CV (%)"] = pd.to_numeric(df["CV (%)"], errors="coerce")
-    df["n (QC)"] = pd.to_numeric(df["n (QC)"], errors="coerce")
-    df["Working Days"] = pd.to_numeric(df["Working Days"], errors="coerce")
-
-    df["BaseScore"] = (100 - df["CV (%)"]) * df["n (QC)"].pow(0.5) * (df["Working Days"] / 30)
-    df["Bonus"] = df["Ratio"].apply(lambda x: 5 if x >= 1.0 else 0)
-    df["Penalty"] = df[["Ratio", "CV (%)"]].isna().any(axis=1).astype(int) * -10
-    df["TotalScore"] = df["BaseScore"] + df["Bonus"] + df["Penalty"]
-
-    battle_results = []
-    grouped = df.groupby(["Parameter", "Level", "Month"])
-    for (param, level, month), group in grouped:
-        valid = group.dropna(subset=["TotalScore"])
-        if valid["Lab"].nunique() < 2:
-            continue
-        ranked = valid.sort_values("TotalScore", ascending=False).reset_index(drop=True)
-        ranked["Rank"] = ranked["TotalScore"].rank(method="min", ascending=False).astype(int)
-        ranked["Medal"] = ranked["Rank"].map({1: "🥇", 2: "🥈", 3: "🥉"})
-
-        for _, row in ranked.iterrows():
-            battle_results.append({
-                "Lab": row["Lab"],
-                "Parameter": param,
-                "Level": level,
-                "Month": month,
-                "Total Score": round(row["TotalScore"], 2),
-                "Rank": row["Rank"],
-                "Medal": row.get("Medal", "")
-            })
-
-    if battle_results:
-        battle_df = pd.DataFrame(battle_results)
-        st.session_state["fadzly_battles"] = battle_df
-        st.success("✅ Battle results submitted and saved!")
-        st.dataframe(battle_df)
-    else:
-        st.warning("⚠️ No valid battles found. Need at least 2 labs per parameter/level/month.")
+        st.success("🟢 You have entered the battlefield!")
