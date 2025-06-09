@@ -1,131 +1,105 @@
+# --- BattleLog.py ---
 import streamlit as st
 import pandas as pd
-import itertools
-import numpy as np
+
 
 def run():
+    st.set_page_config(page_title="Battle Log", layout="wide", page_icon="⚔️")
     st.title("⚔️ LLKK Battle Log")
 
     if "llkk_data" not in st.session_state:
-        st.warning("Please upload data in the Home page first.")
+        st.warning("Please upload data in the Home page or enter it in the Data Entry page.")
         return
 
-    df = st.session_state.llkk_data.copy()
-    df.columns = df.columns.str.strip().str.title()
+    df = st.session_state["llkk_data"]
 
-    required_cols = {"Lab", "Parameter", "Level", "Cv", "Ratio", "Month"}
-    if not required_cols.issubset(df.columns):
-        st.error(f"Missing required columns. Required: {', '.join(required_cols)}")
+    required_columns = ["Lab", "Parameter", "Level", "CV", "Ratio", "Month"]
+    if not all(col in df.columns for col in required_columns):
+        st.error("Missing required columns. Required: Level, Cv, Ratio, Parameter, Lab, Month")
         return
 
-    default_rating = 1000
-    k_factor = 16
+    battle_results = []
 
-    # Elo store
-    ratings = {lab: default_rating for lab in df["Lab"].unique()}
-    battle_log = []
-
-    # Penalty tracking
-    penalty_scores = {lab: 0 for lab in df["Lab"].unique()}
-    bonus_scores = {lab: 0 for lab in df["Lab"].unique()}
-
-    # Loop over month > parameter > level
-    for (month, param, level), group in df.groupby(["Month", "Parameter", "Level"]):
+    for (param, level, month), group in df.groupby(["Parameter", "Level", "Month"]):
         labs = group["Lab"].unique()
-        for lab1, lab2 in itertools.combinations(labs, 2):
-            row1 = group[group["Lab"] == lab1]
-            row2 = group[group["Lab"] == lab2]
+        for i in range(len(labs)):
+            for j in range(i + 1, len(labs)):
+                lab1 = labs[i]
+                lab2 = labs[j]
 
-            if row1.empty or row2.empty:
-                continue
+                cv1 = group[group["Lab"] == lab1]["CV"].mean()
+                cv2 = group[group["Lab"] == lab2]["CV"].mean()
 
-            cv1, ratio1 = row1["Cv"].values[0], row1["Ratio"].values[0]
-            cv2, ratio2 = row2["Cv"].values[0], row2["Ratio"].values[0]
+                if pd.isna(cv1) or pd.isna(cv2):
+                    continue
 
-            if pd.isna(cv1) or pd.isna(cv2):
-                penalty_scores[lab1] -= 10 if pd.isna(cv1) else 0
-                penalty_scores[lab2] -= 10 if pd.isna(cv2) else 0
-                continue
+                winner = lab1 if cv1 < cv2 else lab2 if cv2 < cv1 else "Draw"
 
-            # CV winner
-            if abs(cv1 - cv2) < 0.1:
-                cv_score = (0.5, 0.5)
-            else:
-                cv_score = (1, 0) if cv1 < cv2 else (0, 1)
+                delta1 = round(abs(cv2 - cv1) * 2, 2) if winner != "Draw" else 0
+                delta2 = -delta1 if winner != "Draw" else 0
 
-            # Ratio winner
-            if pd.isna(ratio1) or pd.isna(ratio2):
-                ratio_score = (0.5, 0.5)
-            elif abs(ratio1 - 1.0) < abs(ratio2 - 1.0):
-                ratio_score = (1, 0)
-            elif abs(ratio2 - 1.0) < abs(ratio1 - 1.0):
-                ratio_score = (0, 1)
-            else:
-                ratio_score = (0.5, 0.5)
+                battle_results.append({
+                    "Parameter": f"{param}_{level}_{month}",
+                    "Lab_1": lab1,
+                    "Lab_2": lab2,
+                    "CV_1": round(cv1, 2),
+                    "CV_2": round(cv2, 2),
+                    "Winner": winner,
+                    "Δ_Lab_1": delta1 if winner == lab1 else delta2 if winner == lab2 else 0,
+                    "Δ_Lab_2": delta2 if winner == lab1 else delta1 if winner == lab2 else 0
+                })
 
-            # Final score
-            final_score1 = (cv_score[0] + ratio_score[0]) / 2
-            final_score2 = (cv_score[1] + ratio_score[1]) / 2
+    battle_df = pd.DataFrame(battle_results)
 
-            # Elo updates
-            r1, r2 = ratings[lab1], ratings[lab2]
-            exp1 = 1 / (1 + 10 ** ((r2 - r1) / 400))
-            exp2 = 1 / (1 + 10 ** ((r1 - r2) / 400))
-
-            new_r1 = r1 + k_factor * (final_score1 - exp1)
-            new_r2 = r2 + k_factor * (final_score2 - exp2)
-
-            ratings[lab1] = round(new_r1, 2)
-            ratings[lab2] = round(new_r2, 2)
-
-            battle_log.append({
-                "Month": month,
-                "Parameter_Level": f"{param}_{level}",
-                "Lab_1": lab1,
-                "Lab_2": lab2,
-                "CV_1": cv1,
-                "CV_2": cv2,
-                "Ratio_1": ratio1,
-                "Ratio_2": ratio2,
-                "Score_1": final_score1,
-                "Score_2": final_score2,
-                "Δ_Lab_1": round(new_r1 - r1, 2),
-                "Δ_Lab_2": round(new_r2 - r2, 2),
-                "New_Rating_1": new_r1,
-                "New_Rating_2": new_r2
-            })
-
-    # Apply bonuses (simplified)
-    for _, row in df.iterrows():
-        lab = row["Lab"]
-        if not pd.isna(row["Cv"]) and row["Cv"] <= 2.5:
-            bonus_scores[lab] += 2
-        if not pd.isna(row["Ratio"]) and row["Ratio"] == 1.0:
-            bonus_scores[lab] += 2
-
-    # Final rating table
-    result_df = pd.DataFrame([
-        {
-            "Lab": lab,
-            "Final_Elo": ratings[lab],
-            "Bonus": bonus_scores[lab],
-            "Penalty": penalty_scores[lab],
-            "Total_Score": ratings[lab] + bonus_scores[lab] + penalty_scores[lab]
-        }
-        for lab in ratings
-    ])
-    result_df.sort_values("Total_Score", ascending=False, inplace=True)
-
-    st.subheader("🧾 Battle Log")
-    st.dataframe(pd.DataFrame(battle_log), use_container_width=True)
-
-    st.subheader("🏆 Final Lab Scores")
-    st.dataframe(result_df, use_container_width=True)
+    if battle_df.empty:
+        st.info("No battles were generated from the data.")
+    else:
+        st.dataframe(battle_df, use_container_width=True)
 
     st.markdown(
-        "<hr style='margin-top: 2rem; margin-bottom: 1rem;'>"
-        "<div style='text-align: center; color: gray;'>"
-        "© 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE"
-        "</div>",
+        """
+        <hr style='margin-top: 2rem; margin-bottom: 1rem;'>
+        <div style='text-align: center; color: gray;'>
+        © 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+# --- Champion.py ---
+import streamlit as st
+import pandas as pd
+
+
+def run():
+    st.set_page_config(page_title="Champion", layout="wide", page_icon="🌟")
+    st.title("🏆 LLKK Champion Board")
+
+    if "llkk_data" not in st.session_state:
+        st.warning("Please upload or enter data first.")
+        return
+
+    df = st.session_state["llkk_data"]
+
+    if not all(col in df.columns for col in ["Lab", "CV"]):
+        st.error("Missing required columns. 'Lab' and 'CV' must be present.")
+        return
+
+    # Average CV per Lab (lower is better)
+    avg_cv = df.groupby("Lab")["CV"].mean().reset_index()
+    avg_cv.columns = ["Lab", "Average_CV"]
+    avg_cv["Rank"] = avg_cv["Average_CV"].rank(method="min", ascending=True).astype(int)
+
+    # Display
+    st.dataframe(avg_cv.sort_values("Rank"), use_container_width=True)
+
+    st.markdown(
+        """
+        <hr style='margin-top: 2rem; margin-bottom: 1rem;'>
+        <div style='text-align: center; color: gray;'>
+        © 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE
+        </div>
+        """,
         unsafe_allow_html=True
     )
