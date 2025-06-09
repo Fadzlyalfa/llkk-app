@@ -20,7 +20,28 @@ def run():
             st.rerun()
 
     lab = st.session_state["logged_in_lab"]
-    parameters = ["Glucose", "Creatinine", "Cholesterol"]
+    
+    # ✅ Updated parameter list (17 items, alphabetically sorted)
+    parameters = [
+        "Albumin",
+        "Alanine Transaminase (ALT)",
+        "Alkaline Phosphatase (ALP)",
+        "Aspartate Transaminase (AST)",
+        "Chloride (Cl⁻)",
+        "Cholesterol",
+        "Creatinine",
+        "Direct Bilirubin",
+        "Glucose",
+        "HDL Cholesterol",
+        "Potassium (K⁺)",
+        "Sodium (Na⁺)",
+        "Total Bilirubin",
+        "Total Protein",
+        "Triglycerides",
+        "Urea",
+        "Uric Acid"
+    ]
+
     levels = ["L1", "L2"]
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
