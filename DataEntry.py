@@ -2,6 +2,7 @@
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 def run():
     st.title("📋 LLKK Direct Data Entry")
@@ -48,7 +49,6 @@ def run():
         cv = cols[3].number_input("", min_value=0.0, max_value=100.0, key=f"cv_{i}")
         n_qc = cols[4].number_input("", min_value=0, max_value=100, key=f"n_{i}")
         working_days = cols[5].number_input("", min_value=1, max_value=31, key=f"wd_{i}")
-
         ratio = round(n_qc / working_days, 2) if n_qc > 0 and working_days > 0 else 0.0
         cols[6].number_input("", value=ratio, disabled=True, key=f"ratio_{i}")
 
@@ -67,7 +67,7 @@ def run():
     st.subheader("📊 Preview of Entered Data")
     st.dataframe(df)
 
-    # Deduplicate logic (optional)
+    # Deduplication logic
     if "llkk_data" in st.session_state:
         existing = st.session_state["llkk_data"]
         combined = pd.concat([existing, df], ignore_index=True)
@@ -79,3 +79,50 @@ def run():
     # CSV export
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Download CSV", csv, "llkk_data_entry.csv", "text/csv")
+
+    # ⚔️ Submit to Battle
+    if st.button("⚔️ Submit to Battle"):
+        simulate_battles(st.session_state["llkk_data"])
+
+# 🔁 Battle logic with scoring, bonuses, penalties, and medals
+def simulate_battles(df):
+    st.subheader("🏁 Simulated Battle Results")
+
+    df = df.dropna(subset=["CV (%)", "n (QC)", "Working Days"])
+    df["CV (%)"] = pd.to_numeric(df["CV (%)"], errors="coerce")
+    df["n (QC)"] = pd.to_numeric(df["n (QC)"], errors="coerce")
+    df["Working Days"] = pd.to_numeric(df["Working Days"], errors="coerce")
+
+    df["BaseScore"] = (100 - df["CV (%)"]) * df["n (QC)"].pow(0.5) * (df["Working Days"] / 30)
+    df["Bonus"] = df["Ratio"].apply(lambda x: 5 if x >= 1.0 else 0)
+    df["Penalty"] = df[["Ratio", "CV (%)"]].isna().any(axis=1).astype(int) * -10
+    df["TotalScore"] = df["BaseScore"] + df["Bonus"] + df["Penalty"]
+
+    battle_results = []
+    grouped = df.groupby(["Parameter", "Level", "Month"])
+    for (param, level, month), group in grouped:
+        valid = group.dropna(subset=["TotalScore"])
+        if valid["Lab"].nunique() < 2:
+            continue
+        ranked = valid.sort_values("TotalScore", ascending=False).reset_index(drop=True)
+        ranked["Rank"] = ranked["TotalScore"].rank(method="min", ascending=False).astype(int)
+        ranked["Medal"] = ranked["Rank"].map({1: "🥇", 2: "🥈", 3: "🥉"})
+
+        for _, row in ranked.iterrows():
+            battle_results.append({
+                "Lab": row["Lab"],
+                "Parameter": param,
+                "Level": level,
+                "Month": month,
+                "Total Score": round(row["TotalScore"], 2),
+                "Rank": row["Rank"],
+                "Medal": row.get("Medal", "")
+            })
+
+    if battle_results:
+        battle_df = pd.DataFrame(battle_results)
+        st.session_state["fadzly_battles"] = battle_df
+        st.success("✅ Battle results submitted and saved!")
+        st.dataframe(battle_df)
+    else:
+        st.warning("⚠️ No valid battles found. Need at least 2 labs per parameter/level/month.")
