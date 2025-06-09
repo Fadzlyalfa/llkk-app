@@ -1,41 +1,52 @@
 import streamlit as st
-from PIL import Image
 import pandas as pd
+from PIL import Image
 
-# Configure page
+# Set the page config — this must be the first Streamlit command
 st.set_page_config(page_title="LLKK - Lab Legend Kingdom Kvalis", layout="wide")
 
-# Sidebar navigation
+# Sidebar menu
 menu = st.sidebar.selectbox(
     "🔍 Navigate LLKK Features",
     ["Home", "Battle Log", "Champion", "Download", "About", "Help"]
 )
 
-# --- ROUTING LOGIC ---
+# --- ROUTER ---
 if menu == "Home":
     def run():
-        st.success("Use the navigation sidebar to explore LLKK features")
+        st.header("📤 Upload Your LLKK Excel Data")
+        st.caption("Upload `.xlsx` file")
 
-        # Header Image
-        img = Image.open("Header.png")
-        st.image(img, use_container_width=True)
+        uploaded_file = st.file_uploader(
+            "Drag and drop file here",
+            type=["xlsx"],
+            label_visibility="collapsed"
+        )
 
-        # File uploader
-        st.markdown("### 📤 Upload Your LLKK Excel Data")
-        uploaded_file = st.file_uploader("Upload .xlsx file", type=["xlsx"])
-        
-        if uploaded_file is not None:
+        if uploaded_file:
             try:
                 df = pd.read_excel(uploaded_file)
-                st.session_state["llkk_data"] = df  # Save to session state
-                st.success("✅ File uploaded successfully!")
 
-                # Preview
+                # Standardize column names
+                df.columns = df.columns.str.strip().str.title()
+
+                # Store in session state for use in other pages
+                st.session_state.llkk_data = df
+
+                st.success("✅ File uploaded successfully!")
                 st.markdown("### 👁️ Uploaded Preview")
                 st.dataframe(df, use_container_width=True)
-
             except Exception as e:
-                st.error(f"Error reading file: {e}")
+                st.error(f"❌ Error reading file: {e}")
+
+        # Footer
+        st.markdown(
+            "<hr style='margin-top: 2rem; margin-bottom: 1rem;'>"
+            "<div style='text-align: center; color: gray;'>"
+            "© 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE"
+            "</div>",
+            unsafe_allow_html=True
+        )
 
     run()
 
