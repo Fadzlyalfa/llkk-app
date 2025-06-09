@@ -2,6 +2,27 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
+# EFLM CV target values (LLKK final parameters, alphabetically ordered)
+EFLM_TARGETS = {
+    "Albumin": 1.9,
+    "ALT": 6.6,
+    "AST": 7.1,
+    "Chloride": 0.9,
+    "Cholesterol": 2.8,
+    "Creatinine": 2.7,
+    "Direct Bilirubin": 9.5,
+    "Glucose": 2.9,
+    "HDL Cholesterol": 4.0,
+    "LDL Cholesterol": 4.1,
+    "Potassium": 1.8,
+    "Sodium": 0.7,
+    "Total Bilirubin": 8.3,
+    "Total Protein": 1.9,
+    "Triglyceride": 5.5,
+    "Urea": 2.6,
+    "Uric Acid": 2.6,
+}
+
 def run():
     st.title("⚔️ LLKK Battle Log")
 
@@ -18,7 +39,7 @@ def run():
 
     df = st.session_state["llkk_data"]
 
-    # Section 1 — Your Own Data
+    # Section 1 — Lab's Own Data
     st.markdown(f"### 🧾 `{lab}` Submission")
     lab_df = df[df["Lab"] == lab]
 
@@ -46,7 +67,7 @@ def run():
         }).round(2)
         st.dataframe(combined_summary)
 
-    # Section 3 — Admin-only Battle Trigger
+    # Section 3 — Admin Battle Trigger
     if role == "admin":
         st.markdown("---")
         st.subheader("🛡️ Admin Control Panel")
@@ -55,7 +76,7 @@ def run():
     else:
         st.info("🟢 Awaiting admin to start the battle simulation.")
 
-# 🔁 Battle Simulation Logic (Fadzly Algorithm)
+# 🧠 Fadzly Algorithm with EFLM Target Integration
 def simulate_battles(df):
     st.subheader("🏁 Battle Results")
 
@@ -65,9 +86,19 @@ def simulate_battles(df):
     df["Working Days"] = pd.to_numeric(df["Working Days"], errors="coerce")
 
     df["BaseScore"] = (100 - df["CV (%)"]) * df["n (QC)"].pow(0.5) * (df["Working Days"] / 30)
-    df["Bonus"] = df["Ratio"].apply(lambda x: 5 if x >= 1.0 else 0)
+
+    # Bonus logic
+    df["Bonus"] = df.apply(lambda row: 5 if row["Ratio"] >= 1.0 else 0, axis=1)
+    df["EFLM Bonus"] = df.apply(
+        lambda row: 2 if row["Parameter"] in EFLM_TARGETS and row["CV (%)"] <= EFLM_TARGETS[row["Parameter"]] else 0,
+        axis=1
+    )
+
+    # Penalty for missing CV or Ratio
     df["Penalty"] = df[["Ratio", "CV (%)"]].isna().any(axis=1).astype(int) * -10
-    df["TotalScore"] = df["BaseScore"] + df["Bonus"] + df["Penalty"]
+
+    # Total Score
+    df["TotalScore"] = df["BaseScore"] + df["Bonus"] + df["EFLM Bonus"] + df["Penalty"]
 
     battle_results = []
     grouped = df.groupby(["Parameter", "Level", "Month"])
