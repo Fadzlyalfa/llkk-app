@@ -4,25 +4,30 @@ from itertools import combinations
 
 st.title("📜 LLKK Battle Log")
 
-# Check for uploaded data in session
 if "llkk_data" not in st.session_state:
     st.warning("Please upload data in the Home page first.")
     st.stop()
 
-df = st.session_state.llkk_data
+df = st.session_state.llkk_data.copy()
 
-# Prepare battle log
+# Clean column names
+df.columns = df.columns.str.strip().str.title()
+
+# Check required columns
+required_cols = ["Lab", "Parameter", "Level", "Cv"]
+if not all(col in df.columns for col in required_cols):
+    st.error(f"Missing required columns: {set(required_cols) - set(df.columns)}")
+    st.stop()
+
+# Generate battle log
 battle_rows = []
 
-# Loop by parameter and level
-grouped = df.groupby(["Parameter", "Level"])
-
-for (param, lvl), group in grouped:
+for (param, level), group in df.groupby(["Parameter", "Level"]):
     labs = group["Lab"].unique()
 
     for lab1, lab2 in combinations(labs, 2):
-        cv1 = group[group["Lab"] == lab1]["CV"].values
-        cv2 = group[group["Lab"] == lab2]["CV"].values
+        cv1 = group[group["Lab"] == lab1]["Cv"].values
+        cv2 = group[group["Lab"] == lab2]["Cv"].values
 
         if len(cv1) == 0 or len(cv2) == 0:
             continue
@@ -32,7 +37,7 @@ for (param, lvl), group in grouped:
         winner = lab1 if cv1 < cv2 else lab2
 
         battle_rows.append({
-            "Parameter": f"{param}_{lvl}",
+            "Parameter": f"{param}_{level}",
             "Lab_1": lab1,
             "Lab_2": lab2,
             "CV_1": cv1,
@@ -45,7 +50,7 @@ for (param, lvl), group in grouped:
 battle_df = pd.DataFrame(battle_rows)
 
 if battle_df.empty:
-    st.info("No battles were generated from uploaded data.")
+    st.info("No battles generated.")
 else:
     st.dataframe(battle_df, use_container_width=True)
 
