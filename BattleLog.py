@@ -3,7 +3,6 @@ import pandas as pd
 import itertools
 
 def run():
-    st.set_page_config(page_title="Battle Log", layout="wide", page_icon="⚔️")
     st.title("📜 LLKK Battle Log")
 
     if "llkk_data" not in st.session_state:
@@ -28,12 +27,10 @@ def run():
         if len(labs) < 2:
             continue
 
-        # Generate all possible lab-vs-lab battles
         for lab1, lab2 in itertools.combinations(labs, 2):
             cv1 = group[group["Lab"] == lab1]["Cv"].values[0]
             cv2 = group[group["Lab"] == lab2]["Cv"].values[0]
 
-            # Skip if missing data
             if pd.isna(cv1) or pd.isna(cv2):
                 continue
 
@@ -51,14 +48,12 @@ def run():
                 "Δ_Lab_2": -delta if winner == lab1 else +delta
             })
 
-    # Display results
     if battles:
         battle_df = pd.DataFrame(battles)
         st.dataframe(battle_df, use_container_width=True)
     else:
         st.info("No valid lab comparisons could be generated.")
 
-    # Footer
     st.markdown(
         "<hr style='margin-top: 2rem; margin-bottom: 1rem;'>"
         "<div style='text-align: center; color: gray;'>"
