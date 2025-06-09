@@ -1,105 +1,133 @@
-# --- BattleLog.py ---
+# -------------------------- BattleLog.py --------------------------
+import streamlit as st
+import pandas as pd
+import numpy as np
+
+# --- STREAMLIT CONFIG ---
+st.set_page_config(page_title="Battle Log", layout="wide", page_icon="⚔️")
+st.markdown("## ⚔️ LLKK Battle Log")
+
+# --- CHECK FOR SESSION DATA ---
+data = st.session_state.get("llkk_data")
+if data is None:
+    st.error("No data found. Please upload or enter data via the Home or Data Entry page.")
+    st.stop()
+
+required_cols = {"Level", "Cv", "Ratio", "Parameter", "Lab", "Month"}
+if not required_cols.issubset(set(data.columns)):
+    st.error("Missing required columns. Required: Level, Cv, Ratio, Parameter, Lab, Month")
+    st.stop()
+
+# --- FAKE MATCHUPS & FADZLY ALGORITHM ---
+battle_log = []
+groups = data.groupby(["Parameter", "Level", "Month"])
+for key, group in groups:
+    labs = group["Lab"].unique()
+    for i in range(len(labs)):
+        for j in range(i+1, len(labs)):
+            lab1 = labs[i]
+            lab2 = labs[j]
+            row1 = group[group["Lab"] == lab1]
+            row2 = group[group["Lab"] == lab2]
+            if row1.empty or row2.empty:
+                continue
+
+            cv1 = row1["Cv"].values[0]
+            cv2 = row2["Cv"].values[0]
+            ratio1 = row1["Ratio"].values[0]
+            ratio2 = row2["Ratio"].values[0]
+
+            if np.isnan(ratio1) or np.isnan(ratio2):
+                bonus1 = bonus2 = 0
+            elif ratio1 < 1 and ratio2 >= 1:
+                bonus1 = 10
+                bonus2 = -10
+            elif ratio2 < 1 and ratio1 >= 1:
+                bonus1 = -10
+                bonus2 = 10
+            else:
+                bonus1 = bonus2 = 0
+
+            if np.isnan(cv1) or np.isnan(cv2):
+                delta1 = -10
+                delta2 = -10
+                winner = "Missing"
+            elif cv1 < cv2:
+                delta1 = +10 + bonus1
+                delta2 = -10 + bonus2
+                winner = lab1
+            elif cv2 < cv1:
+                delta1 = -10 + bonus1
+                delta2 = +10 + bonus2
+                winner = lab2
+            else:
+                delta1 = delta2 = 0
+                winner = "Draw"
+
+            battle_log.append({
+                "Parameter": key[0],
+                "Level": key[1],
+                "Month": key[2],
+                "Lab_1": lab1,
+                "CV_1": cv1,
+                "Lab_2": lab2,
+                "CV_2": cv2,
+                "Winner": winner,
+                "Δ_Lab_1": delta1,
+                "Δ_Lab_2": delta2
+            })
+
+battle_df = pd.DataFrame(battle_log)
+if battle_df.empty:
+    st.info("No battles were generated from the dataset.")
+else:
+    st.dataframe(battle_df, use_container_width=True)
+
+# --- FOOTER ---
+st.markdown("""
+<hr style='margin-top: 2rem; margin-bottom: 1rem;'>
+<div style='text-align: center; color: gray;'>
+© 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE
+</div>""", unsafe_allow_html=True)
+
+
+# -------------------------- Champion.py --------------------------
 import streamlit as st
 import pandas as pd
 
+# --- STREAMLIT CONFIG ---
+st.set_page_config(page_title="Champion", layout="wide", page_icon="🏆")
+st.markdown("## 🏆 LLKK Champion Board")
 
-def run():
-    st.set_page_config(page_title="Battle Log", layout="wide", page_icon="⚔️")
-    st.title("⚔️ LLKK Battle Log")
+# --- CHECK FOR SESSION DATA ---
+data = st.session_state.get("llkk_data")
+if data is None:
+    st.error("No data found. Please upload or enter data via the Home or Data Entry page.")
+    st.stop()
 
-    if "llkk_data" not in st.session_state:
-        st.warning("Please upload data in the Home page or enter it in the Data Entry page.")
-        return
+# --- FAKE RATINGS FOR DISPLAY ---
+rating = {}
+battles = st.session_state.get("battle_log")
+if battles is None:
+    st.warning("No battle results found. Visit Battle Log page first.")
+    st.stop()
 
-    df = st.session_state["llkk_data"]
+for index, row in battles.iterrows():
+    for lab in [row["Lab_1"], row["Lab_2"]]:
+        if lab not in rating:
+            rating[lab] = 1000
+    rating[row["Lab_1"]] += row["Δ_Lab_1"]
+    rating[row["Lab_2"]] += row["Δ_Lab_2"]
 
-    required_columns = ["Lab", "Parameter", "Level", "CV", "Ratio", "Month"]
-    if not all(col in df.columns for col in required_columns):
-        st.error("Missing required columns. Required: Level, Cv, Ratio, Parameter, Lab, Month")
-        return
+rank_df = pd.DataFrame([{"Lab": k, "Score": v} for k, v in rating.items()])
+rank_df = rank_df.sort_values("Score", ascending=False)
+rank_df["Rank"] = range(1, len(rank_df) + 1)
 
-    battle_results = []
+st.dataframe(rank_df, use_container_width=True)
 
-    for (param, level, month), group in df.groupby(["Parameter", "Level", "Month"]):
-        labs = group["Lab"].unique()
-        for i in range(len(labs)):
-            for j in range(i + 1, len(labs)):
-                lab1 = labs[i]
-                lab2 = labs[j]
-
-                cv1 = group[group["Lab"] == lab1]["CV"].mean()
-                cv2 = group[group["Lab"] == lab2]["CV"].mean()
-
-                if pd.isna(cv1) or pd.isna(cv2):
-                    continue
-
-                winner = lab1 if cv1 < cv2 else lab2 if cv2 < cv1 else "Draw"
-
-                delta1 = round(abs(cv2 - cv1) * 2, 2) if winner != "Draw" else 0
-                delta2 = -delta1 if winner != "Draw" else 0
-
-                battle_results.append({
-                    "Parameter": f"{param}_{level}_{month}",
-                    "Lab_1": lab1,
-                    "Lab_2": lab2,
-                    "CV_1": round(cv1, 2),
-                    "CV_2": round(cv2, 2),
-                    "Winner": winner,
-                    "Δ_Lab_1": delta1 if winner == lab1 else delta2 if winner == lab2 else 0,
-                    "Δ_Lab_2": delta2 if winner == lab1 else delta1 if winner == lab2 else 0
-                })
-
-    battle_df = pd.DataFrame(battle_results)
-
-    if battle_df.empty:
-        st.info("No battles were generated from the data.")
-    else:
-        st.dataframe(battle_df, use_container_width=True)
-
-    st.markdown(
-        """
-        <hr style='margin-top: 2rem; margin-bottom: 1rem;'>
-        <div style='text-align: center; color: gray;'>
-        © 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-# --- Champion.py ---
-import streamlit as st
-import pandas as pd
-
-
-def run():
-    st.set_page_config(page_title="Champion", layout="wide", page_icon="🌟")
-    st.title("🏆 LLKK Champion Board")
-
-    if "llkk_data" not in st.session_state:
-        st.warning("Please upload or enter data first.")
-        return
-
-    df = st.session_state["llkk_data"]
-
-    if not all(col in df.columns for col in ["Lab", "CV"]):
-        st.error("Missing required columns. 'Lab' and 'CV' must be present.")
-        return
-
-    # Average CV per Lab (lower is better)
-    avg_cv = df.groupby("Lab")["CV"].mean().reset_index()
-    avg_cv.columns = ["Lab", "Average_CV"]
-    avg_cv["Rank"] = avg_cv["Average_CV"].rank(method="min", ascending=True).astype(int)
-
-    # Display
-    st.dataframe(avg_cv.sort_values("Rank"), use_container_width=True)
-
-    st.markdown(
-        """
-        <hr style='margin-top: 2rem; margin-bottom: 1rem;'>
-        <div style='text-align: center; color: gray;'>
-        © 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+# --- FOOTER ---
+st.markdown("""
+<hr style='margin-top: 2rem; margin-bottom: 1rem;'>
+<div style='text-align: center; color: gray;'>
+© 2025 Lab Legend Kingdom Kvalis — Powered by MEQARE
+</div>""", unsafe_allow_html=True)
