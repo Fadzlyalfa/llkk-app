@@ -4,6 +4,7 @@ import numpy as np
 import itertools
 import os
 from pathlib import Path
+import glob
 
 # --- EFLM Targets ---
 EFLM_TARGETS = {
@@ -141,11 +142,21 @@ def run():
 
     role = st.session_state.get("user_role", "lab")
 
-    if "llkk_data" not in st.session_state:
+    # --- Load data from each lab's saved submission file ---
+    dataframes = []
+    for file in glob.glob("data/submission_*.csv"):
+        dataframes.append(pd.read_csv(file))
+
+    if dataframes:
+        df = pd.concat(dataframes, ignore_index=True)
+        st.session_state["llkk_data"] = df
+    else:
+        df = pd.DataFrame()
+
+    if df.empty:
         st.error("🚫 No data found. Please enter data in the Data Entry tab.")
         return
 
-    df = st.session_state["llkk_data"]
     st.markdown("### Submitted Data")
     st.dataframe(df)
 
