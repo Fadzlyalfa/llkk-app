@@ -1,9 +1,6 @@
 import streamlit as st
 import pandas as pd
 
-# ✅ Must be first Streamlit command!
-st.set_page_config(page_title="Champion", layout="wide", page_icon="👑")
-
 def run():
     st.title("👑 LLKK Champion Board")
 
