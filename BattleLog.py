@@ -104,8 +104,6 @@ def simulate_fadzly_algorithm(df):
     for lab_key, elo in ratings.items():
         parts = lab_key.split("_")
         lab = "_".join(parts[:-2])
-        param = parts[-2]
-        level = parts[-1]
         if lab not in final_summary:
             final_summary[lab] = {"Final Elo": 0, "Total Score": scores.get(lab, 0)}
         final_summary[lab]["Final Elo"] += elo
@@ -142,7 +140,6 @@ def run():
 
     role = st.session_state.get("user_role", "lab")
 
-    # --- Load data from each lab's saved submission file ---
     dataframes = []
     for file in glob.glob("data/submission_*.csv"):
         dataframes.append(pd.read_csv(file))
