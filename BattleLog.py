@@ -15,7 +15,7 @@ EFLM_TARGETS = {
 }
 
 def simulate_fadzly_algorithm(df):
-    st.subheader("🏁 Fadzly Battle Simulation")
+    st.subheader("\U0001F3C1 Fadzly Battle Simulation")
 
     df["CV (%)"] = pd.to_numeric(df["CV (%)"], errors="coerce")
     df["Ratio"] = pd.to_numeric(df["Ratio"], errors="coerce")
@@ -68,24 +68,26 @@ def simulate_fadzly_algorithm(df):
             if not pd.isna(cvB) and param in EFLM_TARGETS and cvB <= EFLM_TARGETS[param]:
                 bonus_B += 2
 
-            final_A = cv_score_A + bonus_A - penalty_A
-            final_B = cv_score_B + bonus_B - penalty_B
-            param_level_scores[labA_key] += final_A
-            param_level_scores[labB_key] += final_B
-
             Ra, Rb = ratings[labA_key], ratings[labB_key]
             Ea = 1 / (1 + 10 ** ((Rb - Ra) / 400))
             Eb = 1 / (1 + 10 ** ((Ra - Rb) / 400))
-            ratings[labA_key] += K * ((final_A > final_B) - Ea)
-            ratings[labB_key] += K * ((final_B > final_A) - Eb)
+
+            ratings[labA_key] += K * ((cv_score_A > cv_score_B) - Ea)
+            ratings[labB_key] += K * ((cv_score_B > cv_score_A) - Eb)
+
+            ratings[labA_key] += bonus_A - penalty_A
+            ratings[labB_key] += bonus_B - penalty_B
+
+            param_level_scores[labA_key] += ratings[labA_key]
+            param_level_scores[labB_key] += ratings[labB_key]
 
             battle_logs.append({
                 "Lab_A": labA, "Lab_B": labB,
                 "Parameter": param, "Level": level, "Month": month,
                 "CV_A": cvA, "CV_B": cvB,
                 "Ratio_A": rA, "Ratio_B": rB,
-                "Score_A": round(final_A, 2),
-                "Score_B": round(final_B, 2),
+                "Bonus_A": bonus_A, "Penalty_A": penalty_A,
+                "Bonus_B": bonus_B, "Penalty_B": penalty_B,
                 "Updated_Rating_A": round(ratings[labA_key], 1),
                 "Updated_Rating_B": round(ratings[labB_key], 1)
             })
@@ -100,28 +102,25 @@ def simulate_fadzly_algorithm(df):
                 "Elo": round(ratings[lab_key], 2)
             })
 
-    # Aggregate: average Elo per lab
     lab_elos = {}
-    lab_scores = {}
     lab_counts = {}
 
     for key, elo in ratings.items():
         parts = key.split("_")
         lab = "_".join(parts[:-2])
         lab_elos[lab] = lab_elos.get(lab, 0) + elo
-        lab_scores[lab] = lab_scores.get(lab, 0) + param_level_scores.get(key, 0)
         lab_counts[lab] = lab_counts.get(lab, 0) + 1
 
     summary_df = pd.DataFrame([{
         "Lab": lab,
         "Final Elo": round(lab_elos[lab] / lab_counts[lab], 2),
-        "Total Score": round(lab_scores[lab], 2)
+        "Total Score": round(sum([v for k, v in ratings.items() if k.startswith(lab)]), 2)
     } for lab in lab_elos]).sort_values(by="Final Elo", ascending=False).reset_index(drop=True)
 
     summary_df["Medal"] = ""
-    if len(summary_df) >= 1: summary_df.loc[0, "Medal"] = "🥇"
-    if len(summary_df) >= 2: summary_df.loc[1, "Medal"] = "🥈"
-    if len(summary_df) >= 3: summary_df.loc[2, "Medal"] = "🥉"
+    if len(summary_df) >= 1: summary_df.loc[0, "Medal"] = "\U0001F947"
+    if len(summary_df) >= 2: summary_df.loc[1, "Medal"] = "\U0001F948"
+    if len(summary_df) >= 3: summary_df.loc[2, "Medal"] = "\U0001F949"
 
     st.session_state["elo_history"] = ratings
     st.session_state["elo_progression"] = pd.DataFrame(rating_progression)
