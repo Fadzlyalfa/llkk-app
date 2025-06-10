@@ -132,7 +132,7 @@ def simulate_fadzly_algorithm(df):
     st.session_state["elo_progression"] = pd.DataFrame(rating_progression)
     st.session_state["fadzly_battles"] = summary_df
 
-    # ✅ Ensure folder exists and save
+    # ✅ Save history to data folder
     Path("data").mkdir(exist_ok=True)
     pd.DataFrame.from_dict(ratings, orient="index", columns=["elo"]).to_csv("data/elo_history.csv")
     st.session_state["elo_progression"].to_csv("data/elo_progression.csv", index=False)
@@ -142,3 +142,46 @@ def simulate_fadzly_algorithm(df):
     st.dataframe(summary_df)
     st.markdown("### 📜 Battle Log")
     st.dataframe(pd.DataFrame(battle_logs))
+
+def run():
+    st.title("⚔️ LLKK Battle Log")
+
+    if "logged_in_lab" not in st.session_state:
+        st.warning("Please log in to access this page.")
+        st.stop()
+
+    role = st.session_state.get("user_role", "lab")
+
+    if "llkk_data" not in st.session_state:
+        st.error("🚫 No data found. Please enter data in the Data Entry tab.")
+        return
+
+    df = st.session_state["llkk_data"]
+    st.markdown("### 📊 Submitted Data")
+    st.dataframe(df)
+
+    # Auto-load if missing
+    if "elo_history" not in st.session_state and os.path.exists("data/elo_history.csv"):
+        hist_df = pd.read_csv("data/elo_history.csv")
+        st.session_state["elo_history"] = dict(zip(hist_df["Unnamed: 0"], hist_df["elo"]))
+
+    if "elo_progression" not in st.session_state and os.path.exists("data/elo_progression.csv"):
+        st.session_state["elo_progression"] = pd.read_csv("data/elo_progression.csv")
+
+    if role == "admin":
+        st.markdown("---")
+        st.subheader("🛡️ Admin Control Panel")
+        if st.button("🚀 Start Fadzly Battle Simulation"):
+            simulate_fadzly_algorithm(df)
+
+        st.markdown("### ⚠️ Danger Zone")
+        if st.button("❌ Clear All Elo History"):
+            for key in ["elo_history", "elo_progression", "fadzly_battles"]:
+                st.session_state.pop(key, None)
+            for file in ["data/elo_history.csv", "data/elo_progression.csv"]:
+                if os.path.exists(file):
+                    os.remove(file)
+            st.success("✅ All historical data cleared.")
+            st.rerun()
+    else:
+        st.info("🟢 Waiting for Admin to start the battle simulation.")
