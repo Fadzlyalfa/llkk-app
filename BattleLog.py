@@ -10,7 +10,7 @@ import glob
 EFLM_TARGETS = {
     "Albumin": 2.1, "ALT": 6.0, "ALP": 5.4, "AST": 5.3, "Bilirubin": 8.6,
     "Cholesterol": 2.9, "CK": 4.5, "Creatinine": 3.4, "GGT": 7.7, "Glucose": 2.9,
-    "HDL Cholesterol": 4.0, "LDH": 4.9, "Potassium": 1.8, "Sodium": 0.9,
+    "HDL Cholesterol": 4.0, "LDL Cholesterol": 4.9, "Potassium": 1.8, "Sodium": 0.9,
     "Total Protein": 2.0, "Urea": 3.9, "Uric Acid": 3.3
 }
 
@@ -30,6 +30,26 @@ def simulate_fadzly_algorithm(df):
     battle_logs = []
     rating_progression = []
 
+    # 🧩 Penalize missing submissions
+    all_labs = df["Lab"].unique().tolist()
+    all_params = df["Parameter"].unique().tolist()
+    all_levels = df["Level"].unique().tolist()
+    all_months = df["Month"].unique().tolist()
+
+    expected_combinations = list(itertools.product(all_labs, all_params, all_levels, all_months))
+    actual_submissions = set(tuple(row) for row in df[["Lab", "Parameter", "Level", "Month"]].drop_duplicates().to_numpy())
+
+    for lab, param, level, month in expected_combinations:
+        if (lab, param, level, month) not in actual_submissions:
+            key = f"{lab}_{param}_{level}"
+            if key not in ratings:
+                ratings[key] = 1500
+            if key not in param_level_scores:
+                param_level_scores[key] = 0
+            ratings[key] -= 10
+            param_level_scores[key] += ratings[key]
+
+    # ⚔️ Battle loop
     for (param, level, month), group in df.groupby(["Parameter", "Level", "Month"]):
         labs = group.to_dict("records")
         key_prefix = f"{param}_{level}"
