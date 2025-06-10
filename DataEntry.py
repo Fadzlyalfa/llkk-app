@@ -13,6 +13,14 @@ def run():
         st.stop()
 
     lab = st.session_state["logged_in_lab"]
+
+    # Show previously submitted data
+    file_path = os.path.join(DATA_DIR, f"submission_{lab}.csv")
+    if os.path.exists(file_path):
+        st.markdown("### 📂 Previously Submitted Data")
+        prev_df = pd.read_csv(file_path)
+        st.dataframe(prev_df)
+
     parameters = sorted([
         "Albumin", "ALT", "AST", "Bilirubin (Total)", "Cholesterol",
         "Creatinine", "Direct Bilirubin", "GGT", "Glucose", "HDL Cholesterol",
