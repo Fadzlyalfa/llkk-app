@@ -1,3 +1,31 @@
+# BattleLog.py
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import itertools
+
+# --- EFLM Targets ---
+EFLM_TARGETS = {
+    "Albumin": 2.1,
+    "ALT": 6.0,
+    "ALP": 5.4,
+    "AST": 5.3,
+    "Bilirubin": 8.6,
+    "Cholesterol": 2.9,
+    "CK": 4.5,
+    "Creatinine": 3.4,
+    "GGT": 7.7,
+    "Glucose": 2.9,
+    "HDL Cholesterol": 4.0,
+    "LDH": 4.9,
+    "Potassium": 1.8,
+    "Sodium": 0.9,
+    "Total Protein": 2.0,
+    "Urea": 3.9,
+    "Uric Acid": 3.3
+}
+
 def simulate_fadzly_algorithm(df):
     st.subheader("🏁 Fadzly Battle Simulation")
 
@@ -17,17 +45,13 @@ def simulate_fadzly_algorithm(df):
             cvA, cvB = lab1.get("CV (%)"), lab2.get("CV (%)")
             rA, rB = lab1.get("Ratio"), lab2.get("Ratio")
 
-            # Penalty for missing data
-            penalty_A = 0
-            penalty_B = 0
-            if pd.isna(cvA) or pd.isna(rA):
-                penalty_A = 10
-            if pd.isna(cvB) or pd.isna(rB):
-                penalty_B = 10
+            # Penalties
+            penalty_A = 10 if pd.isna(cvA) or pd.isna(rA) else 0
+            penalty_B = 10 if pd.isna(cvB) or pd.isna(rB) else 0
 
-            # CV Battle Score
+            # CV battle score
             if pd.isna(cvA) or pd.isna(cvB):
-                cv_score_A = cv_score_B = 0.5  # Can't determine winner
+                cv_score_A = cv_score_B = 0.5
             elif abs(cvA - cvB) < 0.1:
                 cv_score_A, cv_score_B = 0.5, 0.5
             elif cvA < cvB:
@@ -42,12 +66,11 @@ def simulate_fadzly_algorithm(df):
                 bonus_A += 5
             if not pd.isna(rB) and rB >= 1.0:
                 bonus_B += 5
-            if not pd.isna(cvA) and cvA <= EFLM_TARGETS.get(param, 0):
+            if not pd.isna(cvA) and param in EFLM_TARGETS and cvA <= EFLM_TARGETS[param]:
                 bonus_A += 2
-            if not pd.isna(cvB) and cvB <= EFLM_TARGETS.get(param, 0):
+            if not pd.isna(cvB) and param in EFLM_TARGETS and cvB <= EFLM_TARGETS[param]:
                 bonus_B += 2
 
-            # Final Score per lab
             final_A = cv_score_A + bonus_A - penalty_A
             final_B = cv_score_B + bonus_B - penalty_B
             scores[labA] += final_A
@@ -78,24 +101,46 @@ def simulate_fadzly_algorithm(df):
 
     rating_df = pd.DataFrame(sorted(ratings.items(), key=lambda x: -x[1]), columns=["Lab", "Final Elo"])
     rating_df["Total Score"] = rating_df["Lab"].map(scores)
-
-    # Add medals
     rating_df["Medal"] = ""
-    if len(rating_df) >= 1:
-        rating_df.loc[0, "Medal"] = "🥇"
-    if len(rating_df) >= 2:
-        rating_df.loc[1, "Medal"] = "🥈"
-    if len(rating_df) >= 3:
-        rating_df.loc[2, "Medal"] = "🥉"
+    if len(rating_df) >= 1: rating_df.loc[0, "Medal"] = "🥇"
+    if len(rating_df) >= 2: rating_df.loc[1, "Medal"] = "🥈"
+    if len(rating_df) >= 3: rating_df.loc[2, "Medal"] = "🥉"
 
     battle_df = pd.DataFrame(battle_logs)
 
+    # Display results
     st.success("✅ Battle simulation completed.")
     st.markdown("### 🏆 Leaderboard")
     st.dataframe(rating_df)
-    st.markdown("---")
-    st.markdown("### 🔍 Detailed Battle Log")
+    st.markdown("### 📜 Detailed Battle Log")
     st.dataframe(battle_df)
 
-    # Save for use in Champion & Download pages
+    # Save to session
     st.session_state["fadzly_battles"] = rating_df
+
+
+# --- Main Entry Point ---
+def run():
+    st.title("⚔️ LLKK Battle Log")
+
+    if "logged_in_lab" not in st.session_state:
+        st.warning("Please log in to access this page.")
+        st.stop()
+
+    role = st.session_state.get("user_role", "lab")
+
+    if "llkk_data" not in st.session_state:
+        st.error("🚫 No data found. Please enter data in the Data Entry tab.")
+        return
+
+    df = st.session_state["llkk_data"]
+    st.markdown("### 📊 Submitted Data")
+    st.dataframe(df)
+
+    if role == "admin":
+        st.markdown("---")
+        st.subheader("🛡️ Admin Control Panel")
+        if st.button("🚀 Start Fadzly Battle Simulation"):
+            simulate_fadzly_algorithm(df)
+    else:
+        st.info("🟢 Waiting for Admin to start the battle simulation.")
