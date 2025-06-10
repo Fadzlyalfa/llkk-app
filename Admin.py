@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from penalty import simulate_fadzly_algorithm  # ✅ Import the new function
 
 def run():
     st.title("🛡️ Admin Control Center")
@@ -15,11 +16,10 @@ def run():
     else:
         st.info("No lab data submitted yet.")
 
-    # Trigger Fadzly Algorithm
+    # Trigger Fadzly Algorithm with penalty
     st.subheader("⚔️ Simulate Battles Across All Labs")
     if st.button("🚀 Start Battle Simulation Now"):
-        from BattleLog import simulate_battles
-        simulate_battles(st.session_state["llkk_data"])
+        simulate_fadzly_algorithm(st.session_state["llkk_data"])  # ✅ Call from penalty.py
         st.success("✅ Battle simulation complete!")
 
     # Export CSV of full data
@@ -31,6 +31,6 @@ def run():
     st.subheader("🧨 Danger Zone")
     if st.button("❌ Clear All LLKK Data"):
         del st.session_state["llkk_data"]
-        if "fadzly_battles" in st.session_state:
-            del st.session_state["fadzly_battles"]
+        for key in ["fadzly_battles", "elo_history", "elo_progression"]:
+            st.session_state.pop(key, None)
         st.success("All LLKK and battle data has been reset.")
