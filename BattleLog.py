@@ -1,3 +1,31 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import itertools
+import os
+from pathlib import Path
+
+# --- EFLM Targets ---
+EFLM_TARGETS = {
+    "Albumin": 2.1,
+    "ALT": 6.0,
+    "ALP": 5.4,
+    "AST": 5.3,
+    "Bilirubin": 8.6,
+    "Cholesterol": 2.9,
+    "CK": 4.5,
+    "Creatinine": 3.4,
+    "GGT": 7.7,
+    "Glucose": 2.9,
+    "HDL Cholesterol": 4.0,
+    "LDH": 4.9,
+    "Potassium": 1.8,
+    "Sodium": 0.9,
+    "Total Protein": 2.0,
+    "Urea": 3.9,
+    "Uric Acid": 3.3
+}
+
 def simulate_fadzly_algorithm(df):
     st.subheader("🏁 Fadzly Battle Simulation")
 
@@ -33,11 +61,9 @@ def simulate_fadzly_algorithm(df):
             labA_key = f"{labA}_{key_prefix}"
             labB_key = f"{labB}_{key_prefix}"
 
-            # Penalties
             penalty_A = 10 if pd.isna(cvA) or pd.isna(rA) else 0
             penalty_B = 10 if pd.isna(cvB) or pd.isna(rB) else 0
 
-            # CV scoring
             if pd.isna(cvA) or pd.isna(cvB):
                 cv_score_A = cv_score_B = 0.5
             elif abs(cvA - cvB) < 0.1:
@@ -47,7 +73,6 @@ def simulate_fadzly_algorithm(df):
             else:
                 cv_score_A, cv_score_B = 0, 1
 
-            # Bonuses
             bonus_A = 5 if not pd.isna(rA) and rA >= 1.0 else 0
             bonus_B = 5 if not pd.isna(rB) and rB >= 1.0 else 0
             if not pd.isna(cvA) and param in EFLM_TARGETS and cvA <= EFLM_TARGETS[param]:
@@ -87,7 +112,6 @@ def simulate_fadzly_algorithm(df):
                 "Elo": round(ratings[lab_key], 2)
             })
 
-    # Aggregate summary by lab
     final_summary = {}
     for lab_key, elo in ratings.items():
         lab, param, level = lab_key.split("_", 2)
@@ -107,6 +131,11 @@ def simulate_fadzly_algorithm(df):
     st.session_state["elo_history"] = ratings
     st.session_state["elo_progression"] = pd.DataFrame(rating_progression)
     st.session_state["fadzly_battles"] = summary_df
+
+    # ✅ Ensure folder exists and save
+    Path("data").mkdir(exist_ok=True)
+    pd.DataFrame.from_dict(ratings, orient="index", columns=["elo"]).to_csv("data/elo_history.csv")
+    st.session_state["elo_progression"].to_csv("data/elo_progression.csv", index=False)
 
     st.success("✅ Battle simulation completed.")
     st.markdown("### 🏆 Leaderboard")
