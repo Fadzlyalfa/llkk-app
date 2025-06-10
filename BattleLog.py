@@ -27,7 +27,7 @@ EFLM_TARGETS = {
 }
 
 def simulate_fadzly_algorithm(df):
-    st.subheader("🏁 Fadzly Battle Simulation")
+    st.subheader("\ud83c\udfc1 Fadzly Battle Simulation")
 
     df["CV (%)"] = pd.to_numeric(df["CV (%)"], errors="coerce")
     df["Ratio"] = pd.to_numeric(df["Ratio"], errors="coerce")
@@ -114,7 +114,11 @@ def simulate_fadzly_algorithm(df):
 
     final_summary = {}
     for lab_key, elo in ratings.items():
-        lab, param, level = lab_key.split("_", 2)
+        parts = lab_key.split("_")
+        lab = "_".join(parts[:-2])
+        param = parts[-2]
+        level = parts[-1]
+
         if lab not in final_summary:
             final_summary[lab] = {"Final Elo": 0, "Total Score": scores.get(lab, 0)}
         final_summary[lab]["Final Elo"] += elo
@@ -124,27 +128,27 @@ def simulate_fadzly_algorithm(df):
     ]).sort_values(by="Final Elo", ascending=False).reset_index(drop=True)
 
     summary_df["Medal"] = ""
-    if len(summary_df) >= 1: summary_df.loc[0, "Medal"] = "🥇"
-    if len(summary_df) >= 2: summary_df.loc[1, "Medal"] = "🥈"
-    if len(summary_df) >= 3: summary_df.loc[2, "Medal"] = "🥉"
+    if len(summary_df) >= 1: summary_df.loc[0, "Medal"] = "\ud83e\udd47"
+    if len(summary_df) >= 2: summary_df.loc[1, "Medal"] = "\ud83e\udd48"
+    if len(summary_df) >= 3: summary_df.loc[2, "Medal"] = "\ud83e\udd49"
 
     st.session_state["elo_history"] = ratings
     st.session_state["elo_progression"] = pd.DataFrame(rating_progression)
     st.session_state["fadzly_battles"] = summary_df
 
-    # ✅ Save history to data folder
+    # \u2705 Save history to data folder
     Path("data").mkdir(exist_ok=True)
     pd.DataFrame.from_dict(ratings, orient="index", columns=["elo"]).to_csv("data/elo_history.csv")
     st.session_state["elo_progression"].to_csv("data/elo_progression.csv", index=False)
 
-    st.success("✅ Battle simulation completed.")
-    st.markdown("### 🏆 Leaderboard")
+    st.success("\u2705 Battle simulation completed.")
+    st.markdown("### \ud83c\udfc6 Leaderboard")
     st.dataframe(summary_df)
-    st.markdown("### 📜 Battle Log")
+    st.markdown("### \ud83d\udcdc Battle Log")
     st.dataframe(pd.DataFrame(battle_logs))
 
 def run():
-    st.title("⚔️ LLKK Battle Log")
+    st.title("\u2694\ufe0f LLKK Battle Log")
 
     if "logged_in_lab" not in st.session_state:
         st.warning("Please log in to access this page.")
@@ -153,11 +157,11 @@ def run():
     role = st.session_state.get("user_role", "lab")
 
     if "llkk_data" not in st.session_state:
-        st.error("🚫 No data found. Please enter data in the Data Entry tab.")
+        st.error("\ud83d\udeab No data found. Please enter data in the Data Entry tab.")
         return
 
     df = st.session_state["llkk_data"]
-    st.markdown("### 📊 Submitted Data")
+    st.markdown("### \ud83d\udcca Submitted Data")
     st.dataframe(df)
 
     # Auto-load if missing
@@ -170,18 +174,18 @@ def run():
 
     if role == "admin":
         st.markdown("---")
-        st.subheader("🛡️ Admin Control Panel")
-        if st.button("🚀 Start Fadzly Battle Simulation"):
+        st.subheader("\ud83d\udee1\ufe0f Admin Control Panel")
+        if st.button("\ud83d\ude80 Start Fadzly Battle Simulation"):
             simulate_fadzly_algorithm(df)
 
-        st.markdown("### ⚠️ Danger Zone")
-        if st.button("❌ Clear All Elo History"):
+        st.markdown("### \u26a0\ufe0f Danger Zone")
+        if st.button("\u274c Clear All Elo History"):
             for key in ["elo_history", "elo_progression", "fadzly_battles"]:
                 st.session_state.pop(key, None)
             for file in ["data/elo_history.csv", "data/elo_progression.csv"]:
                 if os.path.exists(file):
                     os.remove(file)
-            st.success("✅ All historical data cleared.")
+            st.success("\u2705 All historical data cleared.")
             st.rerun()
     else:
-        st.info("🟢 Waiting for Admin to start the battle simulation.")
+        st.info("\ud83d\udfe2 Waiting for Admin to start the battle simulation.")
