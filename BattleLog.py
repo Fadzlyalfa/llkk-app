@@ -25,7 +25,7 @@ def simulate_fadzly_algorithm(df):
         st.session_state["elo_history"] = {}
 
     ratings = st.session_state["elo_history"].copy()
-    scores = {}
+    param_level_scores = {}
     K = 16
     battle_logs = []
     rating_progression = []
@@ -38,8 +38,8 @@ def simulate_fadzly_algorithm(df):
             lab_key = f"{lab}_{key_prefix}"
             if lab_key not in ratings:
                 ratings[lab_key] = 1500
-            if lab not in scores:
-                scores[lab] = 0
+            if lab_key not in param_level_scores:
+                param_level_scores[lab_key] = 0
 
         for lab1, lab2 in itertools.combinations(labs, 2):
             labA, labB = lab1["Lab"], lab2["Lab"]
@@ -70,8 +70,8 @@ def simulate_fadzly_algorithm(df):
 
             final_A = cv_score_A + bonus_A - penalty_A
             final_B = cv_score_B + bonus_B - penalty_B
-            scores[labA] += final_A
-            scores[labB] += final_B
+            param_level_scores[labA_key] += final_A
+            param_level_scores[labB_key] += final_B
 
             Ra, Rb = ratings[labA_key], ratings[labB_key]
             Ea = 1 / (1 + 10 ** ((Rb - Ra) / 400))
@@ -100,17 +100,23 @@ def simulate_fadzly_algorithm(df):
                 "Elo": round(ratings[lab_key], 2)
             })
 
-    final_summary = {}
-    for lab_key, elo in ratings.items():
-        parts = lab_key.split("_")
-        lab = "_".join(parts[:-2])
-        if lab not in final_summary:
-            final_summary[lab] = {"Final Elo": 0, "Total Score": scores.get(lab, 0)}
-        final_summary[lab]["Final Elo"] += elo
+    # Aggregate: average Elo per lab
+    lab_elos = {}
+    lab_scores = {}
+    lab_counts = {}
 
-    summary_df = pd.DataFrame([
-        {"Lab": lab, **vals} for lab, vals in final_summary.items()
-    ]).sort_values(by="Final Elo", ascending=False).reset_index(drop=True)
+    for key, elo in ratings.items():
+        parts = key.split("_")
+        lab = "_".join(parts[:-2])
+        lab_elos[lab] = lab_elos.get(lab, 0) + elo
+        lab_scores[lab] = lab_scores.get(lab, 0) + param_level_scores.get(key, 0)
+        lab_counts[lab] = lab_counts.get(lab, 0) + 1
+
+    summary_df = pd.DataFrame([{
+        "Lab": lab,
+        "Final Elo": round(lab_elos[lab] / lab_counts[lab], 2),
+        "Total Score": round(lab_scores[lab], 2)
+    } for lab in lab_elos]).sort_values(by="Final Elo", ascending=False).reset_index(drop=True)
 
     summary_df["Medal"] = ""
     if len(summary_df) >= 1: summary_df.loc[0, "Medal"] = "🥇"
